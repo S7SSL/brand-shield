@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: brand-shield
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: SECRET_KEY
+        scope: project
+      - key: DEBUG
+        value: false
