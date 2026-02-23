@@ -1,0 +1,31 @@
+name: Deploy erimkaur.com
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'erimkaur-site/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 185.249.73.246
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+            echo "=== Deploying erimkaur.com ==="
+            mkdir -p /var/www/erimkaur
+            curl -sL "https://raw.githubusercontent.com/S7SSL/brand-shield/main/erimkaur-site/index.html" -o /var/www/erimkaur/index.html
+            echo "[OK] Landing page downloaded"
+            curl -sL "https://raw.githubusercontent.com/S7SSL/brand-shield/main/erimkaur-site/nginx-erimkaur.conf" -o /etc/nginx/sites-available/erimkaur
+            echo "[OK] Nginx config downloaded"
+            ln -sf /etc/nginx/sites-available/erimkaur /etc/nginx/sites-enabled/erimkaur
+            rm -f /etc/nginx/sites-enabled/default
+            nginx -t
+            systemctl reload nginx
+            echo "[OK] Nginx reloaded"
+            echo "=== DONE ==="
