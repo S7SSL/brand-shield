@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astonish Property Group | Luxury Property Development</title>
+    <meta name="description" content="Astonish Property Group — Distinguished luxury property development. Creating landmark residences that redefine modern living.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #0a0a0a;
+            --color-bg-alt: #111111;
+            --color-bg-card: #161616;
+            --color-text: #f5f5f5;
+            --color-text-muted: #999999;
+            --color-accent: #c9a96e;
+            --color-accent-light: #dfc192;
+            --color-accent-dark: #a88a4e;
+            --color-border: rgba(255,255,255,0.08);
+            --font-heading: 'Playfair Display', Georgia, serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --max-width: 1400px;
+            --section-padding: clamp(80px, 10vw, 140px);
+        }
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; font-size: 16px; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== NAVIGATION ===== */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.4s ease;
+            background: transparent;
+        }
+        .nav.scrolled {
+            background: rgba(10,10,10,0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 14px 40px;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .nav-logo {
+            font-family: var(--font-heading);
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--color-text);
+            text-decoration: none;
+            letter-spacing: 0.02em;
+        }
+        .nav-logo span { color: var(--color-accent); }
+        .nav-links {
+            display: flex;
+            gap: 36px;
+            list-style: none;
+        }
+        .nav-links a {
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 400;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover { color: var(--color-accent); }
+        .nav-hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 8px;
+        }
+        .nav-hamburger span {
+            width: 24px;
+            height: 1.5px;
+            background: var(--color-text);
+            transition: all 0.3s;
+        }
+
+        /* ===== HERO ===== */
+        .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-end;
+            padding: 0 40px 80px;
+            overflow: hidden;
+        }
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+        }
+        .hero-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(10,10,10,0.9) 0%, rgba(10,10,10,0.3) 50%, rgba(10,10,10,0.5) 100%);
+        }
+        .hero-image-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            z-index: 0;
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            max-width: var(--max-width);
+            width: 100%;
+            margin: 0 auto;
+        }
+        .hero-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--color-accent);
+            margin-bottom: 28px;
+        }
+        .hero-label::before {
+            content: '';
+            width: 40px;
+            height: 1px;
+            background: var(--color-accent);
+        }
+        .hero-title {
+            font-family: var(--font-heading);
+            font-size: clamp(3rem, 7vw, 6.5rem);
+            font-weight: 400;
+            line-height: 1.05;
+            margin-bottom: 28px;
+            max-width: 900px;
+        }
+        .hero-title em {
+            font-style: italic;
+            color: var(--color-accent);
+        }
+        .hero-subtitle {
+            font-size: clamp(1rem, 1.4vw, 1.2rem);
+            color: var(--color-text-muted);
+            max-width: 560px;
+            line-height: 1.7;
+            margin-bottom: 44px;
+            font-weight: 300;
+        }
+        .hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 36px;
+            background: var(--color-accent);
+            color: var(--color-bg);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+        .hero-cta:hover {
+            background: var(--color-accent-light);
+            transform: translateY(-2px);
+        }
+        .hero-cta svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.3s;
+        }
+        .hero-cta:hover svg { transform: translateX(4px); }
+        .hero-scroll {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: var(--color-text-muted);
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+        .hero-scroll .line {
+            width: 1px;
+            height: 60px;
+            background: linear-gradient(to bottom, var(--color-accent), transparent);
+            animation: scrollPulse 2s ease infinite;
+        }
+        @keyframes scrollPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* ===== STATS BAR ===== */
+        .stats-bar {
+            background: var(--color-bg-alt);
+            border-top: 1px solid var(--color-border);
+            border-bottom: 1px solid var(--color-border);
+            padding: 48px 40px;
+        }
+        .stats-grid {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 40px;
+        }
+        .stat-item { text-align: center; }
+        .stat-number {
+            font-family: var(--font-heading);
+            font-size: clamp(2.2rem, 3.5vw, 3.2rem);
+            font-weight: 400;
+            color: var(--color-accent);
+            line-height: 1.1;
+            margin-bottom: 8px;
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 400;
+        }
+
+        /* ===== SECTION SHARED ===== */
+        .section {
+            padding: var(--section-padding) 40px;
+        }
+        .section-inner {
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--color-accent);
+            margin-bottom: 20px;
+        }
+        .section-label::before {
+            content: '';
+            width: 30px;
+            height: 1px;
+            background: var(--color-accent);
+        }
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: clamp(2rem, 4vw, 3.5rem);
+            font-weight: 400;
+            line-height: 1.15;
+            margin-bottom: 24px;
+        }
+        .section-title em {
+            font-style: italic;
+            color: var(--color-accent);
+        }
+        .section-text {
+            font-size: 1.05rem;
+            color: var(--color-text-muted);
+            line-height: 1.8;
+            max-width: 680px;
+            font-weight: 300;
+        }
+
+        /* ===== FEATURED PROJECT (WALLED GARDEN) ===== */
+        .featured {
+            background: var(--color-bg);
+        }
+        .featured-header {
+            margin-bottom: 60px;
+        }
+        .featured-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
+            margin-bottom: 60px;
+        }
+        .featured-image {
+            aspect-ratio: 4/3;
+            background: var(--color-bg-card);
+            overflow: hidden;
+            position: relative;
+        }
+        .featured-image.tall { grid-row: span 2; aspect-ratio: auto; }
+        .featured-image-inner {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.25);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            transition: transform 0.6s ease;
+        }
+        .featured-image:hover .featured-image-inner {
+            transform: scale(1.05);
+        }
+
+        /* ===== TWO WORLDS ===== */
+        .two-worlds {
+            background: var(--color-bg-alt);
+        }
+        .two-worlds-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            margin-top: 60px;
+        }
+        .world-card {
+            padding: 48px;
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            transition: border-color 0.3s;
+        }
+        .world-card:hover {
+            border-color: rgba(201,169,110,0.3);
+        }
+        .world-icon {
+            width: 48px;
+            height: 48px;
+            border: 1px solid var(--color-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 28px;
+        }
+        .world-icon svg {
+            width: 22px;
+            height: 22px;
+            color: var(--color-accent);
+        }
+        .world-title {
+            font-family: var(--font-heading);
+            font-size: 1.6rem;
+            font-weight: 400;
+            margin-bottom: 16px;
+        }
+        .world-desc {
+            font-size: 0.95rem;
+            color: var(--color-text-muted);
+            line-height: 1.8;
+            font-weight: 300;
+        }
+        .world-features {
+            list-style: none;
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .world-features li {
+            font-size: 0.88rem;
+            color: var(--color-text-muted);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 300;
+        }
+        .world-features li::before {
+            content: '';
+            width: 6px;
+            height: 1px;
+            background: var(--color-accent);
+            flex-shrink: 0;
+        }
+
+        /* ===== SUSTAINABILITY ===== */
+        .sustainability {
+            background: var(--color-bg);
+        }
+        .sustainability-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+        .sustainability-visual {
+            aspect-ratio: 1;
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .sustainability-visual::before {
+            content: '';
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            border: 1px solid rgba(201,169,110,0.15);
+            animation: rotateGlow 20s linear infinite;
+        }
+        @keyframes rotateGlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .sustainability-visual-text {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            color: var(--color-accent);
+            text-align: center;
+            z-index: 1;
+        }
+        .sustainability-visual-text .big {
+            display: block;
+            font-size: 4rem;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        .sus-features {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            margin-top: 40px;
+        }
+        .sus-feature {
+            display: flex;
+            gap: 20px;
+        }
+        .sus-feature-icon {
+            width: 40px;
+            height: 40px;
+            border: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .sus-feature-icon svg {
+            width: 18px;
+            height: 18px;
+            color: var(--color-accent);
+        }
+        .sus-feature-title {
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .sus-feature-desc {
+            font-size: 0.88rem;
+            color: var(--color-text-muted);
+            font-weight: 300;
+            line-height: 1.6;
+        }
+
+        /* ===== MATERIALITY ===== */
+        .materiality {
+            background: var(--color-bg-alt);
+        }
+        .material-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            margin-top: 60px;
+        }
+        .material-card {
+            background: var(--color-bg-card);
+            padding: 48px 36px;
+            text-align: center;
+            border: 1px solid var(--color-border);
+            transition: all 0.3s;
+        }
+        .material-card:hover {
+            border-color: rgba(201,169,110,0.3);
+            transform: translateY(-4px);
+        }
+        .material-card-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, rgba(201,169,110,0.1), rgba(201,169,110,0.05));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .material-card-icon svg {
+            width: 28px;
+            height: 28px;
+            color: var(--color-accent);
+        }
+        .material-card h3 {
+            font-family: var(--font-heading);
+            font-size: 1.3rem;
+            font-weight: 400;
+            margin-bottom: 12px;
+        }
+        .material-card p {
+            font-size: 0.88rem;
+            color: var(--color-text-muted);
+            line-height: 1.7;
+            font-weight: 300;
+        }
+
+        /* ===== GALLERY ===== */
+        .gallery {
+            background: var(--color-bg);
+            padding: var(--section-padding) 0;
+        }
+        .gallery .section-inner {
+            padding: 0 40px;
+            margin-bottom: 40px;
+        }
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2px;
+        }
+        .gallery-item {
+            aspect-ratio: 1;
+            background: var(--color-bg-card);
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+        }
+        .gallery-item.wide {
+            grid-column: span 2;
+            aspect-ratio: 2/1;
+        }
+        .gallery-item-inner {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.2);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            text-align: center;
+            padding: 20px;
+            transition: transform 0.6s ease;
+        }
+        .gallery-item:hover .gallery-item-inner {
+            transform: scale(1.08);
+        }
+
+        /* ===== KEY DETAILS ===== */
+        .details {
+            background: var(--color-bg-alt);
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            margin-top: 50px;
+        }
+        .details-list {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+        .detail-item {
+            display: flex;
+            gap: 20px;
+            padding-bottom: 28px;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .detail-item:last-child { border-bottom: none; }
+        .detail-label {
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--color-accent);
+            width: 120px;
+            flex-shrink: 0;
+            padding-top: 2px;
+        }
+        .detail-value {
+            font-size: 1rem;
+            color: var(--color-text-muted);
+            line-height: 1.6;
+            font-weight: 300;
+        }
+        .details-quote {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 48px;
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+        }
+        .details-quote blockquote {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-style: italic;
+            line-height: 1.5;
+            color: var(--color-text);
+            margin-bottom: 20px;
+        }
+        .details-quote cite {
+            font-family: var(--font-body);
+            font-style: normal;
+            font-size: 0.82rem;
+            color: var(--color-accent);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        /* ===== CTA ===== */
+        .cta-section {
+            background: var(--color-bg);
+            padding: var(--section-padding) 40px;
+            text-align: center;
+        }
+        .cta-inner {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+        .cta-title {
+            font-family: var(--font-heading);
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
+            font-weight: 400;
+            line-height: 1.15;
+            margin-bottom: 20px;
+        }
+        .cta-title em {
+            font-style: italic;
+            color: var(--color-accent);
+        }
+        .cta-text {
+            font-size: 1.05rem;
+            color: var(--color-text-muted);
+            line-height: 1.7;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 40px;
+            background: var(--color-accent);
+            color: var(--color-bg);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            background: var(--color-accent-light);
+            transform: translateY(-2px);
+        }
+        .btn-outline {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 40px;
+            background: transparent;
+            color: var(--color-accent);
+            border: 1px solid var(--color-accent);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+        .btn-outline:hover {
+            background: rgba(201,169,110,0.1);
+            transform: translateY(-2px);
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            background: var(--color-bg-alt);
+            border-top: 1px solid var(--color-border);
+            padding: 60px 40px;
+        }
+        .footer-inner {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 60px;
+        }
+        .footer-brand p {
+            font-size: 0.88rem;
+            color: var(--color-text-muted);
+            line-height: 1.7;
+            margin-top: 16px;
+            font-weight: 300;
+            max-width: 320px;
+        }
+        .footer-col h4 {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--color-accent);
+            margin-bottom: 20px;
+        }
+        .footer-col ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .footer-col a {
+            font-size: 0.88rem;
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-weight: 300;
+            transition: color 0.3s;
+        }
+        .footer-col a:hover { color: var(--color-accent); }
+        .footer-bottom {
+            max-width: var(--max-width);
+            margin: 40px auto 0;
+            padding-top: 28px;
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
+            font-weight: 300;
+        }
+        .footer-social {
+            display: flex;
+            gap: 20px;
+        }
+        .footer-social a {
+            color: var(--color-text-muted);
+            transition: color 0.3s;
+        }
+        .footer-social a:hover { color: var(--color-accent); }
+        .footer-social svg { width: 18px; height: 18px; }
+
+        /* ===== ANIMATIONS ===== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ===== MOBILE NAV ===== */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,10,10,0.98);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+        }
+        .mobile-menu.open { display: flex; }
+        .mobile-menu a {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            color: var(--color-text);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        .mobile-menu a:hover { color: var(--color-accent); }
+        .mobile-close {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: none;
+            border: none;
+            color: var(--color-text);
+            font-size: 1.8rem;
+            cursor: pointer;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1024px) {
+            .two-worlds-grid,
+            .sustainability-content,
+            .details-grid,
+            .footer-inner {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+            .featured-grid { grid-template-columns: 1fr; }
+            .featured-image.tall { aspect-ratio: 4/3; }
+            .material-cards { grid-template-columns: 1fr; }
+            .gallery-grid { grid-template-columns: 1fr 1fr; }
+            .gallery-item.wide { grid-column: span 2; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .nav { padding: 16px 24px; }
+            .nav.scrolled { padding: 12px 24px; }
+            .nav-links { display: none; }
+            .nav-hamburger { display: flex; }
+            .hero { padding: 0 24px 60px; }
+            .section { padding: var(--section-padding) 24px; }
+            .gallery .section-inner { padding: 0 24px; }
+            .gallery-grid { grid-template-columns: 1fr; }
+            .gallery-item.wide { grid-column: span 1; aspect-ratio: 16/9; }
+            .footer { padding: 40px 24px; }
+            .footer-bottom { flex-direction: column; gap: 16px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+            .world-card { padding: 32px 24px; }
+            .cta-buttons { flex-direction: column; align-items: center; }
+            .hero-scroll { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav" id="nav">
+    <a href="#" class="nav-logo">Astonish<span>.</span></a>
+    <ul class="nav-links">
+        <li><a href="#project">The Project</a></li>
+        <li><a href="#design">Design</a></li>
+        <li><a href="#sustainability">Sustainability</a></li>
+        <li><a href="#gallery">Gallery</a></li>
+        <li><a href="#contact">Contact</a></li>
+    </ul>
+    <div class="nav-hamburger" id="menuBtn">
+        <span></span><span></span><span></span>
+    </div>
+</nav>
+
+<!-- Mobile Menu -->
+<div class="mobile-menu" id="mobileMenu">
+    <button class="mobile-close" id="menuClose">&times;</button>
+    <a href="#project" onclick="closeMobile()">The Project</a>
+    <a href="#design" onclick="closeMobile()">Design</a>
+    <a href="#sustainability" onclick="closeMobile()">Sustainability</a>
+    <a href="#gallery" onclick="closeMobile()">Gallery</a>
+    <a href="#contact" onclick="closeMobile()">Contact</a>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-image-placeholder">[ Hero image – Walled Garden exterior ]</div>
+    <div class="hero-content">
+        <div class="hero-label">Featured Development</div>
+        <h1 class="hero-title">The Walled<br><em>Garden</em></h1>
+        <p class="hero-subtitle">A landmark residence in rural Hertfordshire. Planning permission secured for an exceptional home designed for modern family living and rooted in heritage.</p>
+        <a href="#project" class="hero-cta">
+            Discover the Project
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+    </div>
+    <div class="hero-scroll">
+        <span>Scroll</span>
+        <div class="line"></div>
+    </div>
+</section>
+
+<!-- Stats Bar -->
+<div class="stats-bar">
+    <div class="stats-grid">
+        <div class="stat-item reveal">
+            <div class="stat-number">6</div>
+            <div class="stat-label">Bedrooms</div>
+        </div>
+        <div class="stat-item reveal">
+            <div class="stat-number">2</div>
+            <div class="stat-label">Distinct Pavilions</div>
+        </div>
+        <div class="stat-item reveal">
+            <div class="stat-number">2030</div>
+            <div class="stat-label">RIBA Climate Standard</div>
+        </div>
+        <div class="stat-item reveal">
+            <div class="stat-number">2025</div>
+            <div class="stat-label">Planning Granted</div>
+        </div>
+    </div>
+</div>
+
+<!-- Featured Project -->
+<section class="section featured" id="project">
+    <div class="section-inner">
+        <div class="featured-header reveal">
+            <div class="section-label">The Walled Garden Project</div>
+            <h2 class="section-title">A Landmark Residence<br>in <em>Rural Hertfordshire</em></h2>
+            <p class="section-text">Our client acquired a remarkable walled garden estate nestled within the rolling countryside of Hertfordshire. With sweeping views and layers of historic charm, the site sits within a registered park and garden, neighbouring a distinguished Grade II* listed property. The ambition: to create an extraordinary modern residence that reflects a refined lifestyle, respects the site's heritage, and sets a new benchmark for luxury living.</p>
+        </div>
+        <div class="featured-grid reveal">
+            <div class="featured-image tall">
+                <div class="featured-image-inner">[ Walled Garden – Main view ]</div>
+            </div>
+            <div class="featured-image">
+                <div class="featured-image-inner">[ Exterior approach ]</div>
+            </div>
+            <div class="featured-image">
+                <div class="featured-image-inner">[ Landscape setting ]</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Two Worlds -->
+<section class="section two-worlds" id="design">
+    <div class="section-inner">
+        <div class="reveal">
+            <div class="section-label">The Design</div>
+            <h2 class="section-title">A Home of <em>Two Worlds</em></h2>
+            <p class="section-text">The brief called for a home that blends refined family living with private leisure and wellness spaces. Designed as two distinct but interconnected parts, creating a seamless balance between daily function and exceptional indulgence.</p>
+        </div>
+        <div class="two-worlds-grid">
+            <div class="world-card reveal">
+                <div class="world-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+                </div>
+                <h3 class="world-title">Main Residence</h3>
+                <p class="world-desc">A six-bedroom home with generous living, dining, kitchen and study areas designed for modern family life and entertaining at scale.</p>
+                <ul class="world-features">
+                    <li>Six generously proportioned bedrooms</li>
+                    <li>Open-plan living, dining and kitchen</li>
+                    <li>Private study and library</li>
+                    <li>Designed for entertaining at scale</li>
+                </ul>
+            </div>
+            <div class="world-card reveal">
+                <div class="world-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <h3 class="world-title">Leisure Pavilion</h3>
+                <p class="world-desc">A private retreat featuring world-class wellness and entertainment facilities, connected seamlessly to the main residence.</p>
+                <ul class="world-features">
+                    <li>Indoor swimming pool</li>
+                    <li>Gym and yoga studio</li>
+                    <li>Private cinema</li>
+                    <li>Below-ground luxury car collection</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Sustainability -->
+<section class="section sustainability" id="sustainability">
+    <div class="section-inner">
+        <div class="sustainability-content">
+            <div class="reveal">
+                <div class="section-label">Sustainability</div>
+                <h2 class="section-title">Legacy Beyond<br><em>Luxury</em></h2>
+                <p class="section-text">Designed to meet the RIBA 2030 Climate Challenge standards. Every decision measured against two principles: environmental sensitivity and timeless beauty.</p>
+                <div class="sus-features">
+                    <div class="sus-feature">
+                        <div class="sus-feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        </div>
+                        <div>
+                            <div class="sus-feature-title">Ultra-Low Energy</div>
+                            <div class="sus-feature-desc">Photovoltaic panels and ground source heat pumps for minimal energy consumption</div>
+                        </div>
+                    </div>
+                    <div class="sus-feature">
+                        <div class="sus-feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                        </div>
+                        <div>
+                            <div class="sus-feature-title">Low-Carbon Materials</div>
+                            <div class="sus-feature-desc">Sustainably sourced charred timber, handmade brick, and reduced embodied carbon structural elements</div>
+                        </div>
+                    </div>
+                    <div class="sus-feature">
+                        <div class="sus-feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75"/></svg>
+                        </div>
+                        <div>
+                            <div class="sus-feature-title">Biodiverse Green Roof</div>
+                            <div class="sus-feature-desc">Native wildflower seeding to support bird and insect habitats, reinforcing the home's connection to nature</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="sustainability-visual reveal">
+                <div class="sustainability-visual-text">
+                    <span class="big">RIBA</span>
+                    2030 Climate<br>Challenge
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Materiality -->
+<section class="section materiality">
+    <div class="section-inner">
+        <div class="reveal">
+            <div class="section-label">Materiality & Presence</div>
+            <h2 class="section-title">Sculptural yet <em>Sympathetic</em></h2>
+            <p class="section-text">A warm and tactile material palette designed to sit quietly and confidently within the rural setting. Contemporary yet rooted in its surroundings.</p>
+        </div>
+        <div class="material-cards">
+            <div class="material-card reveal">
+                <div class="material-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                </div>
+                <h3>Charred Timber</h3>
+                <p>Depth, resilience, and a striking contemporary aesthetic that weathers beautifully over time</p>
+            </div>
+            <div class="material-card reveal">
+                <div class="material-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                </div>
+                <h3>Handmade Brick</h3>
+                <p>Grounding permanence at lower levels, sitting comfortably within the surrounding landscape</p>
+            </div>
+            <div class="material-card reveal">
+                <div class="material-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75"/></svg>
+                </div>
+                <h3>Green Roof</h3>
+                <p>Softening visual presence and encouraging wildlife to flourish, connecting home to nature</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Gallery -->
+<section class="gallery" id="gallery">
+    <div class="section-inner reveal">
+        <div class="section-label">Gallery</div>
+        <h2 class="section-title">The <em>Vision</em></h2>
+    </div>
+    <div class="gallery-grid">
+        <div class="gallery-item wide">
+            <div class="gallery-item-inner">[ Panoramic exterior render ]</div>
+        </div>
+        <div class="gallery-item">
+            <div class="gallery-item-inner">[ Main entrance ]</div>
+        </div>
+        <div class="gallery-item">
+            <div class="gallery-item-inner">[ Pool pavilion ]</div>
+        </div>
+        <div class="gallery-item">
+            <div class="gallery-item-inner">[ Living spaces ]</div>
+        </div>
+        <div class="gallery-item">
+            <div class="gallery-item-inner">[ Kitchen & dining ]</div>
+        </div>
+        <div class="gallery-item wide">
+            <div class="gallery-item-inner">[ Landscape & gardens ]</div>
+        </div>
+    </div>
+</section>
+
+<!-- Key Details -->
+<section class="section details">
+    <div class="section-inner">
+        <div class="reveal">
+            <div class="section-label">Project Details</div>
+            <h2 class="section-title">Key <em>Takeaways</em></h2>
+        </div>
+        <div class="details-grid">
+            <div class="details-list reveal">
+                <div class="detail-item">
+                    <div class="detail-label">Location</div>
+                    <div class="detail-value">Historic walled garden adjacent to Grade II* listed house, Preston, Hertfordshire</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Design</div>
+                    <div class="detail-value">Dual-function residence balancing family life and luxury leisure</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Architect</div>
+                    <div class="detail-value">Modern Architecture Workshop (MAW)</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Sustainability</div>
+                    <div class="detail-value">Designed to RIBA 2030 standards with low carbon and high efficiency</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Outcome</div>
+                    <div class="detail-value">Full planning permission secured, March 2025</div>
+                </div>
+            </div>
+            <div class="details-quote reveal">
+                <blockquote>"To create an extraordinary modern residence that reflects a refined lifestyle, respects the site's heritage, and sets a new benchmark for luxury living."</blockquote>
+                <cite>The Design Vision</cite>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="contact">
+    <div class="cta-inner reveal">
+        <div class="section-label" style="justify-content:center;">Get in Touch</div>
+        <h2 class="cta-title">Let's Create Something<br><em>Extraordinary</em></h2>
+        <p class="cta-text">Interested in luxury property development or have a project in mind? We'd love to hear from you.</p>
+        <div class="cta-buttons">
+            <a href="mailto:sat@astonishproperty.com" class="btn-primary">
+                Get in Touch
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a href="https://www.instagram.com/astonishproperty/" target="_blank" class="btn-outline">Follow on Instagram</a>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <a href="#" class="nav-logo">Astonish<span>.</span></a>
+            <p>Distinguished luxury property development. Creating landmark residences that redefine modern living.</p>
+        </div>
+        <div class="footer-col">
+            <h4>Explore</h4>
+            <ul>
+                <li><a href="#project">The Project</a></li>
+                <li><a href="#design">Design</a></li>
+                <li><a href="#sustainability">Sustainability</a></li>
+                <li><a href="#gallery">Gallery</a></li>
+            </ul>
+        </div>
+        <div class="footer-col">
+            <h4>Project</h4>
+            <ul>
+                <li><a href="#">Walled Garden</a></li>
+                <li><a href="#">Design Team</a></li>
+                <li><a href="#">Planning</a></li>
+            </ul>
+        </div>
+        <div class="footer-col">
+            <h4>Connect</h4>
+            <ul>
+                <li><a href="mailto:sat@astonishproperty.com">Email</a></li>
+                <li><a href="https://www.instagram.com/astonishproperty/" target="_blank">Instagram</a></li>
+                <li><a href="https://www.linkedin.com/" target="_blank">LinkedIn</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span>&copy; 2025 Astonish Property Group. All rights reserved.</span>
+        <div class="footer-social">
+            <a href="https://www.instagram.com/astonishproperty/" target="_blank" aria-label="Instagram">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </a>
+            <a href="https://www.linkedin.com/" target="_blank" aria-label="LinkedIn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            </a>
+        </div>
+    </div>
+</footer>
+
+<script>
+// Scroll-based nav background
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+});
+
+// Mobile menu
+const menuBtn = document.getElementById('menuBtn');
+const mobileMenu = document.getElementById('mobileMenu');
+const menuClose = document.getElementById('menuClose');
+menuBtn.addEventListener('click', () => mobileMenu.classList.add('open'));
+menuClose.addEventListener('click', () => mobileMenu.classList.remove('open'));
+function closeMobile() { mobileMenu.classList.remove('open'); }
+
+// Intersection Observer for reveal animations
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+        }
+    });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+});
+</script>
+
+</body>
+</html>
