@@ -18,14 +18,30 @@ jobs:
           script: |
             set -e
             echo "=== Deploying erimkaur.com ==="
+            echo "=== Debug: checking existing state ==="
+            ls -la /var/www/erimkaur/ 2>/dev/null || echo "Directory does not exist yet"
+            ls -la /etc/nginx/sites-enabled/ 2>/dev/null || echo "No sites-enabled"
+            echo "=== Creating directories ==="
             mkdir -p /var/www/erimkaur
-            curl -sL "https://raw.githubusercontent.com/S7SSL/brand-shield/main/erimkaur-site/index.html" -o /var/www/erimkaur/index.html
+            echo "=== Downloading landing page ==="
+            curl -vSL "https://raw.githubusercontent.com/S7SSL/brand-shield/main/erimkaur-site/index.html" -o /var/www/erimkaur/index.html 2>&1 | tail -20
             echo "[OK] Landing page downloaded"
-            curl -sL "https://raw.githubusercontent.com/S7SSL/brand-shield/main/erimkaur-site/nginx-erimkaur.conf" -o /etc/nginx/sites-available/erimkaur
+            ls -la /var/www/erimkaur/index.html
+            head -5 /var/www/erimkaur/index.html
+            echo "=== Downloading nginx config ==="
+            curl -vSL "https://raw.githubusercontent.com/S7SSL/brand-shield/main/erimkaur-site/nginx-erimkaur.conf" -o /etc/nginx/sites-available/erimkaur 2>&1 | tail -20
             echo "[OK] Nginx config downloaded"
+            cat /etc/nginx/sites-available/erimkaur
+            echo "=== Enabling site ==="
             ln -sf /etc/nginx/sites-available/erimkaur /etc/nginx/sites-enabled/erimkaur
             rm -f /etc/nginx/sites-enabled/default
+            echo "=== Sites enabled ==="
+            ls -la /etc/nginx/sites-enabled/
+            echo "=== Testing nginx ==="
             nginx -t
             systemctl reload nginx
             echo "[OK] Nginx reloaded"
+            echo "=== Checking file permissions ==="
+            ls -la /var/www/erimkaur/
+            stat /var/www/erimkaur/index.html
             echo "=== DONE ==="
