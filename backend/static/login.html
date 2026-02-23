@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand Shield — Login</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .bg-gradient {
+            position: fixed; inset: 0;
+            background: linear-gradient(135deg, #0c4a6e 0%, #701a75 50%, #0f172a 100%);
+            opacity: 0.5;
+            z-index: 0;
+        }
+        .login-card {
+            position: relative; z-index: 1;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 48px 40px;
+            width: 420px;
+            max-width: 90vw;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+        }
+        .logo { text-align: center; margin-bottom: 32px; }
+        .logo .icon { font-size: 48px; margin-bottom: 12px; }
+        .logo h1 { font-size: 24px; font-weight: 700; }
+        .logo p { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block; font-size: 12px; font-weight: 600;
+            color: rgba(255,255,255,0.6); text-transform: uppercase;
+            letter-spacing: 0.5px; margin-bottom: 8px;
+        }
+        .form-group input {
+            width: 100%; padding: 14px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; color: #fff; font-size: 15px;
+            font-family: 'Inter', sans-serif; outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group input:focus {
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+        }
+        .form-group input::placeholder { color: rgba(255,255,255,0.25); }
+        .btn-login {
+            width: 100%; padding: 14px;
+            background: linear-gradient(135deg, #0ea5e9, #a855f7);
+            border: none; border-radius: 12px; color: #fff;
+            font-size: 15px; font-weight: 600;
+            font-family: 'Inter', sans-serif; cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s; margin-top: 8px;
+        }
+        .btn-login:hover { opacity: 0.9; }
+        .btn-login:active { transform: scale(0.98); }
+        .btn-login:disabled { opacity: 0.5; cursor: wait; }
+        .error-msg {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5; padding: 12px 16px;
+            border-radius: 10px; font-size: 13px;
+            margin-bottom: 20px; display: none;
+        }
+        .error-msg.visible { display: block; }
+        .footer { text-align: center; margin-top: 24px; font-size: 11px; color: rgba(255,255,255,0.3); }
+    </style>
+</head>
+<body>
+    <div class="bg-gradient"></div>
+    <div class="login-card">
+        <div class="logo">
+            <div class="icon">&#x1f6e1;&#xfe0f;</div>
+            <h1>Brand Shield</h1>
+            <p>Protecting @erim & @byerim</p>
+        </div>
+        <div id="error" class="error-msg">Invalid username or password</div>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="Enter your username" autocomplete="username" required autofocus />
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+        </form>
+        <div class="footer">Brand Shield v2.0 &mdash; ByErim Ltd</div>
+    </div>
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const error = document.getElementById('error');
+            btn.disabled = true; btn.textContent = 'Signing in...';
+            error.classList.remove('visible');
+            try {
+                const resp = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value,
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) { window.location.href = '/'; }
+                else { error.textContent = data.error || 'Invalid username or password'; error.classList.add('visible'); }
+            } catch (err) { error.textContent = 'Connection error.'; error.classList.add('visible'); }
+            btn.disabled = false; btn.textContent = 'Sign In';
+        }
+    </script>
+</body>
+</html>
