@@ -1,10 +1,11 @@
 """
-Auto-scheduler for Brand Shield scans.
+Auto-scheduler for Brand Shield scans and weekly reports.
 Runs periodic scans using APScheduler.
 """
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,20 @@ def _run_scheduled_scan():
         logger.error(f"Scheduled scan failed: {e}", exc_info=True)
 
 
+def _run_weekly_report():
+    """Callback for weekly report email."""
+    logger.info("Weekly report starting...")
+    try:
+        from backend.services.reporter import send_weekly_report
+        result = send_weekly_report()
+        if result.get("sent"):
+            logger.info(f"Weekly report sent to {result.get('recipients')}")
+        else:
+            logger.warning(f"Weekly report not sent: {result.get('reason', result.get('error', 'unknown'))}")
+    except Exception as e:
+        logger.error(f"Weekly report failed: {e}", exc_info=True)
+
+
 def init_scheduler(app=None):
     """
     Initialize and start the background scheduler.
@@ -47,6 +62,8 @@ def init_scheduler(app=None):
         SCAN_INTERVAL_HOURS = 6
 
     _scheduler = BackgroundScheduler(daemon=True)
+
+    # Auto-scan job (every N hours)
     _scheduler.add_job(
         _run_scheduled_scan,
         trigger=IntervalTrigger(hours=SCAN_INTERVAL_HOURS),
@@ -54,8 +71,21 @@ def init_scheduler(app=None):
         name=f"Brand Shield scan (every {SCAN_INTERVAL_HOURS}h)",
         replace_existing=True,
     )
+
+    # Weekly report job (every Monday at 8:00 AM UTC)
+    _scheduler.add_job(
+        _run_weekly_report,
+        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0),
+        id="brand_shield_weekly_report",
+        name="Brand Shield weekly report (Mon 8AM UTC)",
+        replace_existing=True,
+    )
+
     _scheduler.start()
-    logger.info(f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours")
+    logger.info(
+        f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours, "
+        f"weekly report every Monday 8AM UTC"
+    )
 
 
 def stop_scheduler():
@@ -95,3 +125,8 @@ def get_status():
             for job in (_scheduler.get_jobs() if _scheduler else [])
         ],
     }
+
+
+def trigger_report_now():
+    """Manually trigger a weekly report (called from API)."""
+    _run_weekly_report()
