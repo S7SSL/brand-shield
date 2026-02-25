@@ -1063,9 +1063,7 @@
 
         // Load threats
         async function loadThreats() {
-            const data = await api('/api/threats', {
-                params: { brand: currentBrand }
-            });
+            const data = await api('/api/threats');
             if (!data) return;
 
             const threats = data.threats || [];
@@ -1119,9 +1117,7 @@
 
         // Load DMCA notices
         async function loadDMCA() {
-            const data = await api('/api/dmca', {
-                params: { brand: currentBrand }
-            });
+            const data = await api('/api/dmca');
             if (!data) return;
 
             const notices = data.notices || [];
@@ -1163,9 +1159,7 @@
 
         // Load suspicious accounts
         async function loadSuspects() {
-            const data = await api('/api/suspects', {
-                params: { brand: currentBrand }
-            });
+            const data = await api('/api/suspects');
             if (!data) return;
 
             const suspects = data.suspects || [];
