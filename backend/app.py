@@ -694,7 +694,31 @@ def api_suspects():
 def api_monitoring_status():
     last_scan = query("SELECT * FROM scan_history ORDER BY started_at DESC LIMIT 1", one=True)
     pending = count_query("threats", "status = ?", ("new",))
-    return jsonify({"is_running": False, "last_scan": last_scan, "pending_threats": pending})
+    running = query("SELECT id FROM scan_history WHERE status = 'running' LIMIT 1", one=True)
+    try:
+        from backend.services.scheduler import get_status
+        scheduler = get_status()
+    except Exception:
+        scheduler = {"scheduler_running": False, "scanning_enabled": False}
+    return jsonify({
+        "is_running": running is not None,
+        "last_scan": last_scan,
+        "pending_threats": pending,
+        "scheduler": scheduler,
+    })
+
+
+@app.route("/api/monitoring/toggle", methods=["POST"])
+@require_auth
+def api_monitoring_toggle():
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+    from backend.services.scheduler import enable_scanning, disable_scanning, get_status
+    if enabled:
+        enable_scanning()
+    else:
+        disable_scanning()
+    return jsonify(get_status())
 
 
 @app.route("/api/scan/history", methods=["GET"])
@@ -707,7 +731,17 @@ def api_scan_history():
 @app.route("/api/scan/run", methods=["POST"])
 @require_auth
 def api_scan_run():
-    return jsonify({"message": "Scan started in background"})
+    data = request.get_json() or {}
+    brand = data.get("brand")
+    platform = data.get("platform")
+
+    def background_scan():
+        from backend.services.scanner import run_full_scan
+        run_full_scan(brand=brand, platform=platform)
+
+    t = threading.Thread(target=background_scan, daemon=True)
+    t.start()
+    return jsonify({"message": "Scan started in background", "brand": brand or "all"})
 
 
 # âââ Brands & Config API âââââââââââââââââââââââââââââââââââââââ
@@ -767,6 +801,18 @@ def _load_dashboard_html():
         with open(filepath) as f:
             return f.read()
     return ""
+
+
+
+# --- Auto-Scheduler ---
+import logging
+logging.basicConfig(level=logging.INFO)
+
+try:
+    from backend.services.scheduler import init_scheduler
+    init_scheduler(app)
+except Exception as e:
+    logging.warning(f"Scheduler init failed (non-critical): {e}")
 
 
 if __name__ == "__main__":
