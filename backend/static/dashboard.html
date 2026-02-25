@@ -766,6 +766,31 @@
             border-radius: 6px;
             margin-bottom: 16px;
         }
+    
+        /* Ignored threats */
+        .threat-row.ignored {
+            opacity: 0.45;
+            filter: grayscale(0.6);
+            position: relative;
+        }
+        .threat-row.ignored::after {
+            content: 'IGNORED';
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #30363d;
+            color: #8b949e;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .action-btn.ignore-active {
+            background: #30363d;
+            color: #8b949e;
+        }
     </style>
 </head>
 <body>
@@ -1081,7 +1106,7 @@
                 const brandColor = ['brand1', 'brand2', 'brand3'][Math.abs(brandLetter.charCodeAt(0)) % 3];
 
                 return `
-                    <div class="threat-row">
+                    <div class="threat-row ${threat.status === 'ignored' ? 'ignored' : ''}">
                         <div class="avatar-circle ${brandColor}">${brandLetter}</div>
                         <div class="threat-info">
                             <div class="threat-name">${escapeHtml(threat.infringer_username || 'Unknown')}</div>
@@ -1106,6 +1131,9 @@
                             </button>
                             <button class="action-btn" onclick="viewThreat('${threat.id}')" title="View details">
                                 ${icons.eye} Details
+                            </button>
+                            <button class="action-btn ${threat.status === 'ignored' ? 'ignore-active' : ''}" onclick="ignoreThreat('${threat.id}')" title="${threat.status === 'ignored' ? 'Un-ignore' : 'Ignore'}">
+                                ${threat.status === 'ignored' ? '&#x21A9; Restore' : '&#x1F6AB; Ignore'}
                             </button>
                         </div>
                     </div>
@@ -1306,7 +1334,20 @@
             if (currentTab === 'overview') await loadScans();
         }
 
-        // Generate DMCA
+        // Ignore/unignore threat
+    async function ignoreThreat(threatId) {
+        const result = await api('/api/threats/' + threatId + '/ignore', {
+            method: 'POST'
+        });
+        if (result) {
+            const action = result.action || 'updated';
+            showSuccess('Threat ' + action);
+            await loadThreats();
+            await loadStats();
+        }
+    }
+
+    // Generate DMCA
         async function generateDMCA(threatId) {
             const result = await api('/api/dmca/generate', {
                 method: 'POST',
