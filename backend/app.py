@@ -549,6 +549,17 @@ def api_delete_threat(tid):
     return jsonify({"success": True, "deleted_id": tid})
 
 
+@app.route("/api/threats/<int:tid>/ignore", methods=["POST"])
+@require_auth
+def api_ignore_threat(tid):
+    threat = query("SELECT * FROM threats WHERE id = ?", (tid,), one=True)
+    if not threat:
+        return jsonify({"error": "Not found"}), 404
+    new_status = "new" if threat["status"] == "ignored" else "ignored"
+    execute("UPDATE threats SET status = ? WHERE id = ?", (new_status, tid))
+    updated = query("SELECT * FROM threats WHERE id = ?", (tid,), one=True)
+    return jsonify({"success": True, "threat": updated, "action": "unignored" if new_status == "new" else "ignored"})
+
 # âââ Assets API ââââââââââââââââââââââââââââââââââââââââââââââââ
 
 @app.route("/api/assets", methods=["GET"])
@@ -803,6 +814,42 @@ def _load_dashboard_html():
     return ""
 
 
+
+
+# --- Weekly Report API ---
+@app.route("/api/report/preview", methods=["GET"])
+@require_auth
+def api_report_preview():
+    try:
+        from backend.services.reporter import get_latest_report_html
+        html = get_latest_report_html()
+        return html, 200, {"Content-Type": "text/html"}
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/report/send", methods=["POST"])
+@require_auth
+def api_report_send():
+    try:
+        from backend.services.reporter import send_weekly_report
+        result = send_weekly_report()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/report/status", methods=["GET"])
+@require_auth
+def api_report_status():
+    try:
+        from backend.services.scheduler import get_status
+        status = get_status()
+        report_job = next((j for j in status.get("jobs", []) if "report" in j.get("id", "")), None)
+        return jsonify({
+            "next_report": report_job.get("next_run") if report_job else None,
+            "recipients": ["sat@byerim.com", "erim@byerim.com"],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # --- Auto-Scheduler ---
 import logging
