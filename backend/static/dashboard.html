@@ -791,6 +791,26 @@
             background: #30363d;
             color: #8b949e;
         }
+
+        .threat-row.reported {
+            opacity: 0.45;
+            filter: grayscale(0.6);
+            position: relative;
+        }
+        .threat-row.reported::after {
+            content: 'DMCA SENT';
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1a3a2a;
+            color: #3fb950;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
@@ -1106,7 +1126,7 @@
                 const brandColor = ['brand1', 'brand2', 'brand3'][Math.abs(brandLetter.charCodeAt(0)) % 3];
 
                 return `
-                    <div class="threat-row ${threat.status === 'ignored' ? 'ignored' : ''}">
+                    <div class="threat-row ${threat.status === 'ignored' ? 'ignored' : threat.status === 'reported' ? 'reported' : ''}">
                         <div class="avatar-circle ${brandColor}">${brandLetter}</div>
                         <div class="threat-info">
                             <div class="threat-name">${escapeHtml(threat.infringer_username || 'Unknown')}</div>
@@ -1358,6 +1378,7 @@
                 showSuccess('DMCA notice generated successfully');
                 await loadDMCA();
                 await loadStats();
+                await loadThreats();
             }
         }
 
