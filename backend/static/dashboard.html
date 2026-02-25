@@ -1546,7 +1546,7 @@
         async function init() {
             try {
                 const auth = await api('/api/auth/me');
-                if (!auth || !auth.user) {
+                if (!auth || (!auth.user && !auth.username && !auth.authenticated)) {
                     // If we get a network error (local file), use demo mode
                     if (window.location.protocol === 'file:' || !window.location.hostname || window.location.hostname === 'localhost') {
                         isLocalMode = true;
@@ -1557,6 +1557,9 @@
                     window.location.href = '/login';
                     return;
                 }
+                // Set username display
+                const username = auth.username || auth.user || 'User';
+                document.querySelector('.user-info').textContent = 'Logged in as ' + username;
                 await refreshAll();
             } catch (e) {
                 // Network error - use demo mode
