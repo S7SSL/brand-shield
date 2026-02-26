@@ -1229,7 +1229,7 @@
                         <div class="suspect-info">
                             <div class="suspect-name">@${escapeHtml(suspect.username)} (${escapeHtml(suspect.platform)})</div>
                             <div class="suspect-meta">
-                                <span>${escapeHtml(suspect.bio || 'No bio')} &mdash; ${suspect.followers.toLocaleString()} followers</span>
+                                <span>${escapeHtml(suspect.bio || 'No bio')} &mdash; ${(suspect.followers || 0).toLocaleString()} followers</span>
                                 <div class="confidence">
                                     <span class="badge platform">${suspect.confidence}% confidence</span>
                                 </div>
@@ -1630,3 +1630,4 @@
     </script>
 </body>
 </html>
+
