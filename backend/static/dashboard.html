@@ -1219,7 +1219,7 @@
             }
 
             const html = suspects.map(suspect => {
-                const flags = Array.isArray(suspect.red_flags) ? suspect.red_flags.join(', ') : suspect.red_flags;
+                const flags = Array.isArray((suspect.detection_reasons || suspect.red_flags || [])) ? (suspect.detection_reasons || suspect.red_flags || []).join(', ') : (suspect.detection_reasons || suspect.red_flags || []);
                 const brandLetter = suspect.display_name ? suspect.display_name.charAt(0).toUpperCase() : 'S';
                 const brandColor = ['brand1', 'brand2', 'brand3'][Math.abs(brandLetter.charCodeAt(0)) % 3];
 
@@ -1229,9 +1229,9 @@
                         <div class="suspect-info">
                             <div class="suspect-name">@${escapeHtml(suspect.username)} (${escapeHtml(suspect.platform)})</div>
                             <div class="suspect-meta">
-                                <span>${escapeHtml(suspect.bio || 'No bio')} &mdash; ${(suspect.followers || 0).toLocaleString()} followers</span>
+                                <span>${escapeHtml(suspect.bio_text || suspect.bio || 'No bio')} &mdash; ${(suspect.follower_count || suspect.followers || 0).toLocaleString()} followers</span>
                                 <div class="confidence">
-                                    <span class="badge platform">${suspect.confidence}% confidence</span>
+                                    <span class="badge platform">${(suspect.risk_score || suspect.confidence || 0)}% confidence</span>
                                 </div>
                             </div>
                             <div style="margin-top: 8px; font-size: 12px; color: #8b949e;">
@@ -1538,6 +1538,7 @@
 
         // Escape HTML
         function escapeHtml(text) {
+            if (text == null) return '';
             const map = {
                 '&': '&amp;',
                 '<': '&lt;',
