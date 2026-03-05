@@ -80,7 +80,7 @@ def seed_demo_data():
             "infringer_username": "erim.official.backup",
             "confidence": 0.94,
             "evidence_json": json.dumps({"bio_match": 0.91, "profile_pic_match": 0.88, "name_match": 1.0}),
-            "status": "new",
+            "status": "reported",
             "detected_at": "2026-02-22 14:30:00",
         },
         {
@@ -92,7 +92,7 @@ def seed_demo_data():
             "infringer_username": "stolen_erim_vids",
             "confidence": 0.87,
             "evidence_json": json.dumps({"video_hash_match": 0.87, "caption_similarity": 0.72}),
-            "status": "new",
+            "status": "reported",
             "detected_at": "2026-02-21 09:15:00",
         },
         {
@@ -104,7 +104,7 @@ def seed_demo_data():
             "infringer_username": "ByErimOfficialStore",
             "confidence": 0.92,
             "evidence_json": json.dumps({"product_image_match": 0.92, "brand_name_used": True, "price_undercut": True}),
-            "status": "new",
+            "status": "reported",
             "detected_at": "2026-02-22 18:45:00",
         },
         {
@@ -128,7 +128,7 @@ def seed_demo_data():
             "infringer_username": "TheRealErimKaur",
             "confidence": 0.79,
             "evidence_json": json.dumps({"bio_match": 0.65, "profile_pic_match": 0.82, "name_match": 0.9}),
-            "status": "new",
+            "status": "reported",
             "detected_at": "2026-02-23 02:10:00",
         },
         {
@@ -153,7 +153,7 @@ def seed_demo_data():
             "infringer_username": "cheapbeardoils.com",
             "confidence": 0.81,
             "evidence_json": json.dumps({"text_similarity": 0.81, "paragraphs_copied": 4}),
-            "status": "new",
+            "status": "reported",
             "detected_at": "2026-02-22 08:00:00",
         },
         {
@@ -467,7 +467,7 @@ def api_dashboard():
 @app.route("/api/dashboard/stats", methods=["GET"])
 @require_auth
 def api_dashboard_stats():
-    total_threats = count_query("threats", "status != ?", ("resolved",))
+    total_threats = count_query("threats", "status NOT IN (?, ?)", ("resolved", "reported"))
     new_threats = count_query("threats", "status = ?", ("new",))
     resolved_threats = count_query("threats", "status = ?", ("resolved",))
     reported_threats = count_query("threats", "status = ?", ("reported",))
