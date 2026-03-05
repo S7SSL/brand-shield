@@ -460,6 +460,8 @@ def api_threats():
     status = request.args.get("status")
     if status:
         sql += " AND status = ?"; p.append(status)
+    else:
+        sql += " AND status != ?"; p.append("resolved")
     ttype = request.args.get("type")
     if ttype:
         sql += " AND threat_type = ?"; p.append(ttype)
