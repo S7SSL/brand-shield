@@ -881,7 +881,7 @@
                         <option value="unauthorized_resale">Unauthorized Resale</option>
                     </select>
                     <select class="filter-select" id="threatStatusFilter">
-                        <option value="">All Status</option>
+                        <option value="">Active</option>
                         <option value="new">New</option>
                         <option value="reported">Reported</option>
                         <option value="resolved">Resolved</option>
@@ -1111,7 +1111,24 @@
             const data = await api('/api/threats');
             if (!data) return;
 
-            const threats = data.threats || [];
+            let threats = data.threats || [];
+            
+            // Apply filters
+            const typeFilter = document.getElementById('threatTypeFilter').value;
+            const statusFilter = document.getElementById('threatStatusFilter').value;
+            
+            // By default (Active view), hide resolved and reported threats
+            if (!statusFilter) {
+                threats = threats.filter(t => t.status !== 'resolved' && t.status !== 'reported');
+            } else {
+                threats = threats.filter(t => t.status === statusFilter);
+            }
+            
+            // Apply type filter
+            if (typeFilter) {
+                threats = threats.filter(t => t.threat_type === typeFilter);
+            }
+            
             document.getElementById('threats-count').textContent = threats.length;
 
             if (threats.length === 0) {
