@@ -1,5 +1,5 @@
 """
-Brand Shield v2.0 â Flask HTTP API Server with Authentication
+Brand Shield v2.0 Ã¢ÂÂ Flask HTTP API Server with Authentication
 Compatible with Gunicorn for Render.com deployment.
 """
 import os
@@ -11,6 +11,10 @@ from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone
 from pathlib import Path
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -44,12 +48,19 @@ def count_query(table, where="", params=()):
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "brand-shield-dev-key-change-in-production")
 
+# SMTP Configuration (set via Render environment variables)
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "legal@byerim.com")
+
 # Initialize database and default users on startup
 init_db()
 setup_default_users()
 
 
-# âââ Seed Data ââââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Seed Data Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 def seed_demo_data():
     """Seed the database with realistic demo data if empty."""
@@ -286,7 +297,7 @@ def seed_demo_data():
 seed_demo_data()
 
 
-# âââ Middleware âââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Middleware Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 def check_auth():
     """Check if user is authenticated via session."""
@@ -317,7 +328,7 @@ def require_auth(f):
     return decorated_function
 
 
-# âââ Routes âââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Routes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/login", methods=["GET"])
 def login_page():
@@ -345,7 +356,7 @@ def serve_static(filename):
         return f.read(), 200, {"Content-Type": content_type or "application/octet-stream"}
 
 
-# âââ Auth API ââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Auth API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/auth/login", methods=["POST"])
 def api_login():
@@ -384,7 +395,7 @@ def api_auth_me():
     return jsonify({"username": username, "authenticated": True})
 
 
-# âââ Dashboard API ââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Dashboard API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/dashboard/stats", methods=["GET"])
 @require_auth
@@ -435,7 +446,7 @@ def api_dashboard_stats():
     })
 
 
-# âââ Threats API âââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Threats API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/threats", methods=["GET"])
 @require_auth
@@ -560,7 +571,7 @@ def api_ignore_threat(tid):
     updated = query("SELECT * FROM threats WHERE id = ?", (tid,), one=True)
     return jsonify({"success": True, "threat": updated, "action": "unignored" if new_status == "new" else "ignored"})
 
-# âââ Assets API ââââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Assets API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/assets", methods=["GET"])
 @require_auth
@@ -569,7 +580,7 @@ def api_assets():
     return jsonify({"assets": assets, "total": len(assets)})
 
 
-# âââ DMCA API ââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DMCA API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/dmca", methods=["GET"])
 @require_auth
@@ -678,7 +689,7 @@ def api_dmca_generate():
     return jsonify({"success": True, "notice": notice, "body_preview": body}), 201
 
 
-# âââ Suspects API ââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Suspects API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/suspects", methods=["GET"])
 @require_auth
@@ -698,7 +709,7 @@ def api_suspects():
     return jsonify({"suspects": suspects, "total": len(suspects)})
 
 
-# âââ Monitoring API ââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Monitoring API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/monitoring/status", methods=["GET"])
 @require_auth
@@ -755,7 +766,7 @@ def api_scan_run():
     return jsonify({"message": "Scan started in background", "brand": brand or "all"})
 
 
-# âââ Brands & Config API âââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Brands & Config API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/brands", methods=["GET"])
 @require_auth
@@ -763,7 +774,7 @@ def api_brands():
     return jsonify(BRANDS)
 
 
-# âââ Email API ââââââââââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Email API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.route("/api/email/status", methods=["GET"])
 @require_auth
@@ -793,7 +804,40 @@ def api_email_log():
 @app.route("/api/email/send", methods=["POST"])
 @require_auth
 def api_email_send():
-    return jsonify({"error": "Email sending requires SMTP configuration"}), 501
+    """Send an email via SMTP."""
+    data = request.get_json() or {}
+    to_email = data.get("to")
+    subject = data.get("subject")
+    body_text = data.get("body")
+    notice_id = data.get("notice_id")
+
+    if not to_email or not subject or not body_text:
+        return jsonify({"error": "to, subject, and body are required"}), 400
+
+    if not SMTP_HOST or not SMTP_USER:
+        if notice_id:
+            now = datetime.now(timezone.utc).isoformat()
+            execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?",
+                    ("sent", now, notice_id))
+        return jsonify({"success": True, "method": "simulated", "message": "SMTP not configured - simulated send."})
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = SMTP_FROM
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body_text, "plain"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        if notice_id:
+            now = datetime.now(timezone.utc).isoformat()
+            execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?",
+                    ("sent", now, notice_id))
+        return jsonify({"success": True, "method": "smtp", "message": "Email sent successfully"})
+    except Exception as e:
+        return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
 
 
 def _load_login_html():
@@ -815,6 +859,77 @@ def _load_dashboard_html():
 
 
 
+
+
+
+# ═══ DMCA Send & Confirm API ═════════════════════════════════
+@app.route("/api/dmca/<int:nid>/send", methods=["POST"])
+@require_auth
+def api_dmca_send(nid):
+    """Send a DMCA notice via email."""
+    notice = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
+    if not notice:
+        return jsonify({"error": "Notice not found"}), 404
+    if notice["status"] == "sent":
+        return jsonify({"error": "Notice already sent"}), 400
+    to_email = notice.get("recipient_email", "")
+    subject = notice.get("subject_line", "DMCA Takedown Notice")
+    body_text = notice.get("body", "")
+    if not to_email:
+        return jsonify({"error": "No recipient email for this notice"}), 400
+    if not SMTP_HOST or not SMTP_USER:
+        now = datetime.now(timezone.utc).isoformat()
+        execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?", ("sent", now, nid))
+        updated = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
+        return jsonify({"success": True, "method": "simulated", "message": f"DMCA notice sent to {to_email} (simulated)", "notice": updated})
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = SMTP_FROM
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body_text, "plain"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        now = datetime.now(timezone.utc).isoformat()
+        execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?", ("sent", now, nid))
+        updated = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
+        return jsonify({"success": True, "method": "smtp", "notice": updated})
+    except Exception as e:
+        return jsonify({"error": f"Failed to send: {str(e)}"}), 500
+
+
+@app.route("/api/dmca/<int:nid>/confirm-removal", methods=["POST"])
+@require_auth
+def api_dmca_confirm_removal(nid):
+    """Confirm content removed after DMCA notice."""
+    data = request.get_json() or {}
+    notice = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
+    if not notice:
+        return jsonify({"error": "Notice not found"}), 404
+    now = datetime.now(timezone.utc).isoformat()
+    response_text = data.get("response_text", "Content confirmed removed")
+    execute("UPDATE dmca_notices SET status = ?, response_at = ?, response_text = ? WHERE id = ?", ("resolved", now, response_text, nid))
+    threat_id = notice.get("threat_id")
+    if threat_id:
+        execute("UPDATE threats SET status = ?, resolved_at = ? WHERE id = ?", ("resolved", now, threat_id))
+    updated = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
+    return jsonify({"success": True, "notice": updated})
+
+
+@app.route("/api/report/summary", methods=["GET"])
+@require_auth
+def api_report_summary():
+    """Brand protection summary report."""
+    sent_notices = count_query("dmca_notices", "status IN ('sent', 'resolved')")
+    resolved_notices = count_query("dmca_notices", "status = 'resolved'")
+    total_threats = count_query("threats")
+    resolved_threats = count_query("threats", "status = 'resolved'")
+    reported_threats = count_query("threats", "status = 'reported'")
+    top_infringers = query("SELECT infringer_username, platform, COUNT(*) as threat_count FROM threats GROUP BY infringer_username ORDER BY threat_count DESC LIMIT 5")
+    by_platform = query("SELECT platform, COUNT(*) as count FROM threats GROUP BY platform ORDER BY count DESC")
+    return jsonify({"legal_notices_sent": sent_notices, "content_removed": resolved_notices, "total_threats_detected": total_threats, "threats_resolved": resolved_threats, "threats_reported": reported_threats, "top_infringers": top_infringers, "by_platform": by_platform, "report_period": datetime.now().strftime("%b %Y")})
 
 # --- Weekly Report API ---
 @app.route("/api/report/preview", methods=["GET"])
@@ -867,7 +982,7 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
 
     print("=" * 60)
-    print("  Brand Shield v2.0 â Protecting @erim & @byerim")
+    print("  Brand Shield v2.0 Ã¢ÂÂ Protecting @erim & @byerim")
     print(f"  Dashboard: http://localhost:{port}")
     print(f"  Login required (users: sat, erim)")
     print("=" * 60)
