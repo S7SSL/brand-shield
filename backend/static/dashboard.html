@@ -1149,6 +1149,9 @@
                             <button class="action-btn" onclick="resolveThreat('${threat.id}')" title="Mark as resolved">
                                 ${icons.check} Resolve
                             </button>
+                            <button class="action-btn" onclick="fileDmca('${threat.id}')" title="File DMCA takedown" style="background:#f0883e;border-color:#f0883e;">
+                                DMCA
+                            </button>
                             <button class="action-btn" onclick="viewThreat('${threat.id}')" title="View details">
                                 ${icons.eye} Details
                             </button>
@@ -1508,6 +1511,110 @@
         }
 
         // Show/hide modal
+
+// ═══ DMCA Takedown Workflow ═══
+async function fileDmca(threatId) {
+    const data = await api(`/api/threats/${threatId}`);
+    if (!data || !data.id) return;
+    const threat = data;
+    const platformEmails = {'instagram':'ip@fb.com','facebook':'ip@fb.com','tiktok':'legal@tiktok.com','shopify':'legal@shopify.com','amazon':'copyright@amazon.com','twitter':'copyright@twitter.com','youtube':'copyright@youtube.com','web':''};
+    const recipientEmail = platformEmails[threat.platform] || '';
+    const platformToType = {'instagram':'meta','facebook':'meta','tiktok':'general','shopify':'shopify','amazon':'amazon','twitter':'twitter','youtube':'general','web':'general'};
+    const noticeType = platformToType[threat.platform] || 'general';
+    const existingNotices = threat.dmca_notices || [];
+    let existingSection = '';
+    if (existingNotices.length > 0) {
+        const noticeRows = existingNotices.map(n => `<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><span style="color:#79c0ff;font-weight:600;">Notice #${escapeHtml(String(n.id))}</span> <span style="color:#8b949e;margin-left:8px;">${escapeHtml(n.notice_type||'')} → ${escapeHtml(n.recipient_email||'')}</span></div><div><span class="status-badge status-${n.status}">${escapeHtml(n.status||'')}</span>${n.status==='draft'?`<button onclick="sendDmcaNotice(${n.id})" class="action-btn resolve" style="margin-left:8px;padding:4px 12px;font-size:12px;">Send</button>`:''}${n.status==='sent'?`<button onclick="confirmRemoval(${n.id})" class="action-btn resolve" style="margin-left:8px;padding:4px 12px;font-size:12px;">Confirm Removal</button>`:''}</div></div>${n.sent_at?`<div style="color:#8b949e;font-size:12px;margin-top:4px;">Sent: ${escapeHtml(n.sent_at)}</div>`:''}${n.response_text?`<div style="color:#3fb950;font-size:12px;margin-top:4px;">Response: ${escapeHtml(n.response_text)}</div>`:''}</div>`).join('');
+        existingSection = `<div style="margin-bottom:16px;"><label class="modal-label" style="color:#f0883e;">Existing DMCA Notices</label>${noticeRows}</div><hr style="border-color:#30363d;margin:16px 0;">`;
+    }
+    const body = `${existingSection}<div style="margin-bottom:16px;"><label class="modal-label">Threat Summary</label><div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><div><span style="color:#8b949e;">Platform:</span> <span style="color:#e6edf3;">${escapeHtml(threat.platform||'')}</span></div><div><span style="color:#8b949e;">Type:</span> <span style="color:#e6edf3;">${escapeHtml(threat.threat_type||'')}</span></div><div><span style="color:#8b949e;">Infringer:</span> <span style="color:#f85149;">${escapeHtml(threat.infringer_username||'')}</span></div><div><span style="color:#8b949e;">Confidence:</span> <span style="color:#e6edf3;">${Math.round((threat.confidence||0)*100)}%</span></div></div><div style="margin-top:8px;"><span style="color:#8b949e;">URL:</span> <a href="${escapeHtml(threat.detected_url||'')}" target="_blank" style="color:#79c0ff;word-break:break-all;">${escapeHtml(threat.detected_url||'')}</a></div></div></div><div style="margin-bottom:16px;"><label class="modal-label">DMCA Notice Type</label><select id="dmca-notice-type" style="width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:14px;"><option value="general" ${noticeType==='general'?'selected':''}>General DMCA</option><option value="meta" ${noticeType==='meta'?'selected':''}>Meta (Instagram/Facebook)</option><option value="amazon" ${noticeType==='amazon'?'selected':''}>Amazon</option><option value="shopify" ${noticeType==='shopify'?'selected':''}>Shopify</option><option value="twitter" ${noticeType==='twitter'?'selected':''}>X/Twitter</option></select></div><div style="margin-bottom:16px;"><label class="modal-label">Recipient Email</label><input type="email" id="dmca-recipient-email" value="${escapeHtml(recipientEmail)}" style="width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:14px;box-sizing:border-box;" placeholder="Enter recipient email address"></div><div id="dmca-preview-area" style="display:none;margin-bottom:16px;"><label class="modal-label">Notice Preview</label><div id="dmca-preview-content" style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;max-height:300px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;font-size:12px;color:#8b949e;line-height:1.5;"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button onclick="generateAndPreviewDmca(${threat.id})" id="dmca-generate-btn" class="action-btn details" style="padding:8px 16px;">Generate Notice</button><button onclick="sendDmcaFromModal(${threat.id})" id="dmca-send-btn" class="action-btn resolve" style="padding:8px 16px;display:none;">Send via Email</button><button onclick="copyDmcaToClipboard()" id="dmca-copy-btn" class="action-btn" style="padding:8px 16px;display:none;background:#30363d;color:#e6edf3;border:1px solid #484f58;">Copy to Clipboard</button></div><div id="dmca-status-msg" style="margin-top:12px;display:none;padding:8px 12px;border-radius:6px;font-size:13px;"></div>`;
+    showModal('DMCA Takedown Notice', body, '700px');
+}
+
+async function generateAndPreviewDmca(threatId) {
+    const noticeType = document.getElementById('dmca-notice-type').value;
+    const recipientEmail = document.getElementById('dmca-recipient-email').value;
+    const btn = document.getElementById('dmca-generate-btn');
+    btn.textContent = 'Generating...'; btn.disabled = true;
+    try {
+        const result = await api('/api/dmca/generate', { method: 'POST', body: { threat_id: threatId, notice_type: noticeType, recipient_email: recipientEmail } });
+        if (result && result.success) {
+            document.getElementById('dmca-preview-area').style.display = 'block';
+            const pc = document.getElementById('dmca-preview-content');
+            pc.textContent = result.body_preview;
+            pc.dataset.noticeId = result.notice.id;
+            pc.dataset.noticeBody = result.body_preview;
+            document.getElementById('dmca-send-btn').style.display = 'inline-block';
+            document.getElementById('dmca-copy-btn').style.display = 'inline-block';
+            btn.textContent = 'Regenerate'; btn.disabled = false;
+            showDmcaStatus('Notice generated! Review and send below.', 'success');
+            await loadThreats(); await loadStats();
+        } else { showDmcaStatus('Failed: ' + (result?.error || 'Unknown'), 'error'); btn.textContent = 'Generate Notice'; btn.disabled = false; }
+    } catch (e) { showDmcaStatus('Error: ' + e.message, 'error'); btn.textContent = 'Generate Notice'; btn.disabled = false; }
+}
+
+async function sendDmcaFromModal(threatId) {
+    const pc = document.getElementById('dmca-preview-content');
+    const nid = pc?.dataset?.noticeId;
+    if (!nid) { showDmcaStatus('Generate a notice first.', 'error'); return; }
+    if (!confirm('Send this DMCA takedown notice via email?')) return;
+    await sendDmcaNotice(parseInt(nid));
+}
+
+async function sendDmcaNotice(noticeId) {
+    try {
+        const result = await api(`/api/dmca/${noticeId}/send`, { method: 'POST' });
+        if (result && result.success) {
+            const m = result.method === 'simulated' ? ' (simulated)' : '';
+            showSuccess('DMCA notice sent' + m);
+            showDmcaStatus('Notice sent' + m, 'success');
+            const sb = document.getElementById('dmca-send-btn');
+            if (sb) { sb.textContent = 'Sent ✓'; sb.disabled = true; sb.style.background = '#238636'; }
+            await loadThreats(); await loadStats();
+        } else { showDmcaStatus('Failed: ' + (result?.error || 'Unknown'), 'error'); }
+    } catch (e) { showDmcaStatus('Error: ' + e.message, 'error'); }
+}
+
+async function confirmRemoval(noticeId) {
+    const rt = prompt('Enter confirmation details (e.g., "Content removed by platform"):');
+    if (rt === null) return;
+    try {
+        const result = await api(`/api/dmca/${noticeId}/confirm-removal`, { method: 'POST', body: { response_text: rt || 'Content confirmed removed' } });
+        if (result && result.success) {
+            showSuccess('Removal confirmed! Threat resolved.');
+            await loadThreats(); await loadStats();
+            const modal = document.getElementById('modal-overlay');
+            if (modal) modal.style.display = 'none';
+        } else { showError('Failed: ' + (result?.error || 'Unknown')); }
+    } catch (e) { showError('Error: ' + e.message); }
+}
+
+async function copyDmcaToClipboard() {
+    const pc = document.getElementById('dmca-preview-content');
+    if (!pc) return;
+    try {
+        await navigator.clipboard.writeText(pc.textContent);
+        showDmcaStatus('Copied to clipboard!', 'success');
+        const cb = document.getElementById('dmca-copy-btn');
+        if (cb) { cb.textContent = 'Copied ✓'; setTimeout(() => cb.textContent = 'Copy to Clipboard', 2000); }
+    } catch (e) {
+        const ta = document.createElement('textarea'); ta.value = pc.textContent;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        showDmcaStatus('Copied to clipboard!', 'success');
+    }
+}
+
+function showDmcaStatus(message, type) {
+    const el = document.getElementById('dmca-status-msg');
+    if (!el) return;
+    el.style.display = 'block'; el.textContent = message;
+    el.style.background = type === 'success' ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)';
+    el.style.border = '1px solid ' + (type === 'success' ? '#238636' : '#f85149');
+    el.style.color = type === 'success' ? '#3fb950' : '#f85149';
+}
+
+
         function showModal(title, content, actions = '') {
             document.getElementById('modalTitle').textContent = title;
             document.getElementById('modalBody').innerHTML = content;
