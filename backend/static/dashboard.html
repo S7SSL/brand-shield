@@ -1394,12 +1394,11 @@
             if (result) {
                 showSuccess('Threat marked as resolved');
                 await loadThreats();
-                await loadStats();
-            }
+                await loadStats()            }
         }
 
         // View threat details
-        async function viewThreat(thretId) {
+        async function viewThreat(threatId) {
             const data = await api(`/api/threats/${threatId}`);
             if (!data || !data.id) return;
 
