@@ -1401,9 +1401,9 @@
         // View threat details
         async function viewThreat(threatId) {
             const data = await api(`/api/threats/${threatId}`);
-            if (!data || !data.threat) return;
+            if (!data || !data.id) return;
 
-            const threat = data.threat;
+            const threat = data;
             const body = `
                 <div class="modal-field">
                     <label class="modal-label">Infringer</label>
