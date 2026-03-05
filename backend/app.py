@@ -467,7 +467,7 @@ def api_dashboard():
 @app.route("/api/dashboard/stats", methods=["GET"])
 @require_auth
 def api_dashboard_stats():
-    total_threats = count_query("threats")
+    total_threats = count_query("threats", "status != ?", ("resolved",))
     new_threats = count_query("threats", "status = ?", ("new",))
     resolved_threats = count_query("threats", "status = ?", ("resolved",))
     reported_threats = count_query("threats", "status = ?", ("reported",))
