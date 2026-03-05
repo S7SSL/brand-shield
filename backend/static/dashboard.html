@@ -1399,12 +1399,12 @@
         }
 
         // View threat details
-        async function viewThreat(threatId) {
+        async function viewThreat(thretId) {
             const data = await api(`/api/threats/${threatId}`);
             if (!data || !data.id) return;
 
             const threat = data;
-            const body = `
+            const body = 
                 <div class="modal-field">
                     <label class="modal-label">Infringer</label>
                     <div class="modal-value">${escapeHtml(threat.infringer_username || 'Unknown')}</div>
@@ -1538,7 +1538,7 @@
 
         // Escape HTML
         function escapeHtml(text) {
-            if (text == null) return '';
+            if (text == null) return ''; text = String(text);
             const map = {
                 '&': '&amp;',
                 '<': '&lt;',
