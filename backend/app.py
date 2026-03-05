@@ -397,6 +397,73 @@ def api_auth_me():
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Dashboard API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
+@app.route("/api/dashboard")
+@require_auth
+def api_dashboard():
+    """Dashboard stats - excludes resolved threats."""
+    brand = request.args.get("brand")
+    # Active threats (exclude resolved)
+    sql_active = "SELECT COUNT(*) as c FROM threats WHERE status != 'resolved'"
+    params_active = []
+    if brand:
+        sql_active += " AND brand = ?"
+        params_active.append(brand)
+    active = query(sql_active, params_active, one=True)
+    active_count = active["c"] if active else 0
+
+    # Critical/High counts
+    sql_crit = "SELECT COUNT(*) as c FROM threats WHERE status != 'resolved' AND severity = 'critical'"
+    sql_high = "SELECT COUNT(*) as c FROM threats WHERE status != 'resolved' AND severity = 'high'"
+    params_sev = []
+    if brand:
+        sql_crit += " AND brand = ?"
+        sql_high += " AND brand = ?"
+        params_sev = [brand]
+    crit = query(sql_crit, params_sev, one=True)
+    high = query(sql_high, params_sev, one=True)
+    crit_count = crit["c"] if crit else 0
+    high_count = high["c"] if high else 0
+
+    # New threats (last 7 days)
+    sql_new = "SELECT COUNT(*) as c FROM threats WHERE status != 'resolved' AND detected_at >= datetime('now', '-7 days')"
+    params_new = []
+    if brand:
+        sql_new += " AND brand = ?"
+        params_new.append(brand)
+    new_t = query(sql_new, params_new, one=True)
+    new_count = new_t["c"] if new_t else 0
+
+    # DMCA notices
+    sql_dmca = "SELECT COUNT(*) as c FROM dmca_notices"
+    dmca_total = query(sql_dmca, one=True)
+    dmca_count = dmca_total["c"] if dmca_total else 0
+    sql_dmca_resolved = "SELECT COUNT(*) as c FROM dmca_notices WHERE status = 'resolved'"
+    dmca_res = query(sql_dmca_resolved, one=True)
+    dmca_resolved = dmca_res["c"] if dmca_res else 0
+
+    # Suspicious accounts
+    sql_suspects = "SELECT COUNT(*) as c FROM suspects"
+    suspects = query(sql_suspects, one=True)
+    suspect_count = suspects["c"] if suspects else 0
+
+    # Resolved threats total
+    sql_resolved = "SELECT COUNT(*) as c FROM threats WHERE status = 'resolved'"
+    resolved = query(sql_resolved, one=True)
+    resolved_count = resolved["c"] if resolved else 0
+
+    return jsonify({
+        "active_threats": active_count,
+        "new_detected": new_count,
+        "critical_count": crit_count,
+        "high_count": high_count,
+        "dmca_notices": dmca_count,
+        "dmca_resolved": dmca_resolved,
+        "dmca_success_rate": round(dmca_resolved / dmca_count * 100) if dmca_count > 0 else 0,
+        "suspect_accounts": suspect_count,
+        "resolved_threats": resolved_count
+    })
+
+
 @app.route("/api/dashboard/stats", methods=["GET"])
 @require_auth
 def api_dashboard_stats():
