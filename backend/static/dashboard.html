@@ -1576,18 +1576,44 @@ async function sendDmcaNotice(noticeId) {
 }
 
 async function confirmRemoval(noticeId) {
-    const rt = prompt('Enter confirmation details (e.g., "Content removed by platform"):');
-    if (rt === null) return;
-    try {
-        const result = await api(`/api/dmca/${noticeId}/confirm-removal`, { method: 'POST', body: { response_text: rt || 'Content confirmed removed' } });
-        if (result && result.success) {
-            showSuccess('Removal confirmed! Threat resolved.');
-            await loadThreats(); await loadStats();
-            const modal = document.getElementById('modal-overlay');
-            if (modal) modal.style.display = 'none';
-        } else { showError('Failed: ' + (result?.error || 'Unknown')); }
-    } catch (e) { showError('Error: ' + e.message); }
-}
+            if (!confirm('Confirm that the infringing content has been removed?')) return;
+            try {
+                const resp = await fetch(`/api/dmca/${noticeId}/confirm-removal`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showDmcaStatus('Content removal confirmed! Threat removed from dashboard.', 'success');
+                    // Close DMCA modal after short delay
+                    setTimeout(() => {
+                        const modal = document.getElementById('dmcaModal');
+                        if (modal) modal.style.display = 'none';
+                    }, 1500);
+                    // Remove the resolved threat card from DOM
+                    if (data.notice && data.notice.threat_id) {
+                        const threatId = data.notice.threat_id;
+                        const cards = document.querySelectorAll('.threat-card');
+                        cards.forEach(card => {
+                            const actions = card.querySelector('[onclick*="openDmcaModal(' + threatId + '"]') ||
+                                            card.querySelector('[onclick*="viewThreat(' + threatId + '"]');
+                            if (actions) {
+                                card.style.transition = 'opacity 0.5s, transform 0.5s';
+                                card.style.opacity = '0';
+                                card.style.transform = 'scale(0.95)';
+                                setTimeout(() => card.remove(), 500);
+                            }
+                        });
+                    }
+                    // Refresh dashboard stats
+                    if (typeof loadDashboardStats === 'function') loadDashboardStats();
+                } else {
+                    showDmcaStatus(data.error || 'Failed to confirm removal', 'error');
+                }
+            } catch(e) {
+                showDmcaStatus('Error: ' + e.message, 'error');
+            }
+        }
 
 async function copyDmcaToClipboard() {
     const pc = document.getElementById('dmca-preview-content');
