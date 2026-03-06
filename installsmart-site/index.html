@@ -108,6 +108,8 @@ footer a { color: var(--cyan); text-decoration: none; }
 .mobile-toggle { display: none; flex-direction: column; gap: 5px; cursor: pointer; z-index: 101; }
 .mobile-toggle span { width: 25px; height: 2px; background: var(--cyan); transition: all 0.3s; }
 @media (max-width: 768px) { nav { padding: 0 20px; } .mobile-toggle { display: flex; } .nav-links { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: rgba(5, 10, 20, 0.98); flex-direction: column; justify-content: center; align-items: center; gap: 30px; } .nav-links.open { display: flex; } .stats-bar { gap: 30px; } .hero h1 { font-size: 1.8rem; } .service-pills { gap: 8px; } .pill { font-size: 0.65rem; padding: 6px 12px; } }
+
+@keyframes bannerPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
 </style>
 </head>
 <body>
@@ -121,9 +123,14 @@ footer a { color: var(--cyan); text-decoration: none; }
     <li><a href="#how-it-works">How It Works</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#faq">FAQ</a></li>
+    <a href="macmini.html" style="color: #FFD700; font-weight: 700;">Mac Mini Offer</a>
     <li><a href="https://calendly.com" class="nav-cta">Book a Free Chat</a></li>
   </ul>
 </nav>
+
+<div style="position:fixed;top:70px;left:0;right:0;z-index:99;background:linear-gradient(90deg,#ff00e5,#ff4444,#ff00e5);padding:10px 20px;text-align:center;font-family:Orbitron,sans-serif;font-size:0.75rem;letter-spacing:2px;text-transform:uppercase;color:#fff;font-weight:700;animation:bannerPulse 2s ease-in-out infinite;">
+  <a href="macmini.html" style="color:#FFD700;text-decoration:none;">FREE APPLE MAC MINI M4 — Limited to First 25 SMEs — CLAIM YOURS NOW</a>
+</div>
 <section class="hero">
   <div class="hero-eyebrow">AI For Small Business</div>
   <h1>Struggling to find the right AI solution for your business?</h1>
@@ -184,6 +191,20 @@ footer a { color: var(--cyan); text-decoration: none; }
     <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><span>What happens after the discovery phase?</span><span class="faq-toggle">+</span></div><div class="faq-a"><p>You'll receive a full report with our recommendations and a setup quote. If you'd like to proceed, we handle everything — installation, configuration, testing, and team training.</p></div></div>
   </div>
 </section>
+
+<section style="position:relative;z-index:2;text-align:center;padding:80px 20px;">
+  <div style="max-width:800px;margin:0 auto;background:linear-gradient(135deg,rgba(0,229,255,0.05),rgba(255,0,229,0.03));border:2px solid #FFD700;padding:50px 40px;position:relative;">
+    <div style="position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,#FFD700,#00e5ff,#ff00e5);"></div>
+    <div style="font-family:Orbitron,sans-serif;font-size:0.7rem;color:#ff00e5;letter-spacing:5px;text-transform:uppercase;margin-bottom:10px;">LIMITED TIME OFFER</div>
+    <h2 style="font-family:Orbitron,sans-serif;font-size:clamp(1.5rem,3vw,2.2rem);font-weight:700;margin-bottom:20px;background:linear-gradient(135deg,#e8f0ff,#FFD700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">FREE Apple Mac Mini M4 With Every AI BOT Installation</h2>
+    <p style="color:#8899bb;font-size:1rem;margin-bottom:30px;max-width:600px;margin-left:auto;margin-right:auto;">Get a brand-new Mac Mini M4 (worth £599) completely FREE when you invest in our AI BOT installation package. Only 25 spots available for London and M25 North SMEs.</p>
+    <div style="margin-bottom:20px;">
+      <a href="macmini.html" style="display:inline-block;font-family:Orbitron,sans-serif;font-size:0.85rem;letter-spacing:3px;text-transform:uppercase;padding:18px 50px;background:linear-gradient(135deg,#00ff88,#00cc6a);color:#050a14;text-decoration:none;font-weight:800;box-shadow:0 0 30px rgba(0,255,136,0.2);">CLAIM YOUR FREE MAC MINI</a>
+    </div>
+    <p style="font-family:JetBrains Mono,monospace;font-size:0.7rem;color:#8899bb;letter-spacing:1px;">All for just £2,000 | Includes AI BOT + Mac Mini M4 + Setup + Training</p>
+  </div>
+</section>
+
 <footer>
   <div class="footer-logo">INSTALL<span>SMART</span>.AI</div>
   <p>&copy; 2025 InstallSmart.AI — Kaizen Finance Ltd. All rights reserved.</p>
