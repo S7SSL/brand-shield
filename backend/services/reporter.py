@@ -1,5 +1,5 @@
 """
-Weekly Report Generator for Brand Shield.
+Weekly Report Generator for BrandDefend.
 Sends email digests with threat summaries, DMCA status, and suspicious accounts.
 """
 import os
@@ -12,14 +12,42 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 # Email configuration - set via environment variables on Render
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", "alerts@byerim.com")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "legal@byerim.com")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM = os.getenv("RESEND_FROM", "BrandDefend <legal@byerim.com>")
 REPORT_RECIPIENTS = os.getenv(
     "REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com"
 ).split(",")
+
+
+def _send_via_resend(to_addresses: list, subject: str, html_body: str, plain_body: str) -> bool:
+    """Send email using Resend HTTP API."""
+    import requests
+    payload = {
+        "from": RESEND_FROM,
+        "to": to_addresses,
+        "subject": subject,
+        "html": html_body,
+        "text": plain_body,
+    }
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        json=payload,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        timeout=15,
+    )
+    if resp.status_code in (200, 201):
+        logger.info(f"Resend email sent, id={resp.json().get('id')}")
+        return True
+    else:
+        raise Exception(f"Resend API error {resp.status_code}: {resp.text[:300]}")
 
 
 def _get_weekly_data():
@@ -145,7 +173,7 @@ def build_report_html(data):
 
 <!-- Header -->
 <div style="text-align:center;padding:24px 0;border-bottom:1px solid #21262d;">
-    <h1 style="color:#58a6ff;margin:0;font-size:24px;">Brand Shield Weekly Report</h1>
+    <h1 style="color:#58a6ff;margin:0;font-size:24px;">BrandDefend Weekly Report</h1>
     <p style="color:#8b949e;margin:8px 0 0;font-size:14px;">
         {datetime.utcnow().strftime('%d %B %Y')} &mdash; Protecting @erim &amp; @byerim
     </p>
@@ -278,15 +306,16 @@ def build_report_html(data):
 <div style="text-align:center;padding:24px 0;margin-top:16px;">
     <a href="https://brand-shield.onrender.com/"
        style="display:inline-block;background:#238636;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">
-        Open Dashboard &rarr;
+        Open BrandDefend Dashboard &rarr;
     </a>
 </div>
 
 <!-- Footer -->
 <div style="text-align:center;padding:16px 0;border-top:1px solid #21262d;">
     <p style="color:#484f58;font-size:12px;margin:0;">
-        Brand Shield v2.0 &mdash; Automated Brand Protection<br>
-        This report is generated weekly. Log in to action threats or adjust settings.
+        BrandDefend &mdash; Automated Brand Protection for @erim &amp; @byerim<br>
+        This report is generated weekly. Log in to action threats or adjust settings.<br>
+        <a href="https://branddefend.ai" style="color:#484f58;">branddefend.ai</a>
     </p>
 </div>
 
@@ -311,24 +340,8 @@ def send_weekly_report():
             f"{active_count} active | {datetime.utcnow().strftime('%d %b %Y')}"
         )
 
-        if not SMTP_USER or not SMTP_PASS:
-            logger.warning(
-                "SMTP not configured (set SMTP_USER & SMTP_PASS env vars). "
-                "Report generated but not sent."
-            )
-            # Still save the report to the database for dashboard access
-            _save_report_to_db(subject, html_body, data)
-            return {"sent": False, "reason": "SMTP not configured", "subject": subject}
-
-        # Build email
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = FROM_EMAIL
-        msg["To"] = ", ".join(REPORT_RECIPIENTS)
-
-        # Plain text fallback
         plain_text = (
-            f"Brand Shield Weekly Report - {datetime.utcnow().strftime('%d %b %Y')}\n\n"
+            f"BrandDefend Weekly Report - {datetime.utcnow().strftime('%d %b %Y')}\n\n"
             f"New threats this week: {new_count}\n"
             f"Active threats: {active_count}\n"
             f"DMCA notices sent: {len(data['new_dmca'])}\n"
@@ -336,18 +349,33 @@ def send_weekly_report():
             f"View full report: https://brand-shield.onrender.com/"
         )
 
-        msg.attach(MIMEText(plain_text, "plain"))
-        msg.attach(MIMEText(html_body, "html"))
-
-        # Send
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(FROM_EMAIL, REPORT_RECIPIENTS, msg.as_string())
-
-        logger.info(f"Weekly report sent to {REPORT_RECIPIENTS}")
-        _save_report_to_db(subject, html_body, data, sent=True)
-        return {"sent": True, "recipients": REPORT_RECIPIENTS, "subject": subject}
+        # Prefer Resend, fallback to SMTP, or save draft if neither configured
+        if RESEND_API_KEY:
+            _send_via_resend(REPORT_RECIPIENTS, subject, html_body, plain_text)
+            logger.info(f"Weekly report sent via Resend to {REPORT_RECIPIENTS}")
+            _save_report_to_db(subject, html_body, data, sent=True)
+            return {"sent": True, "method": "resend", "recipients": REPORT_RECIPIENTS, "subject": subject}
+        elif SMTP_USER and SMTP_PASS:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = FROM_EMAIL
+            msg["To"] = ", ".join(REPORT_RECIPIENTS)
+            msg.attach(MIMEText(plain_text, "plain"))
+            msg.attach(MIMEText(html_body, "html"))
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(FROM_EMAIL, REPORT_RECIPIENTS, msg.as_string())
+            logger.info(f"Weekly report sent via SMTP to {REPORT_RECIPIENTS}")
+            _save_report_to_db(subject, html_body, data, sent=True)
+            return {"sent": True, "method": "smtp", "recipients": REPORT_RECIPIENTS, "subject": subject}
+        else:
+            logger.warning(
+                "No email provider configured (set RESEND_API_KEY or SMTP_USER+SMTP_PASS). "
+                "Report generated but not sent."
+            )
+            _save_report_to_db(subject, html_body, data)
+            return {"sent": False, "reason": "No email provider configured", "subject": subject}
 
     except Exception as e:
         logger.error(f"Failed to send weekly report: {e}", exc_info=True)

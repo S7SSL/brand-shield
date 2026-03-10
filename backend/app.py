@@ -1,5 +1,5 @@
 """
-Brand Shield v2.0 Ã¢ÂÂ Flask HTTP API Server with Authentication
+BrandDefend — Flask HTTP API Server with Authentication
 Compatible with Gunicorn for Render.com deployment.
 """
 import os
@@ -46,7 +46,7 @@ def count_query(table, where="", params=()):
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "brand-shield-dev-key-change-in-production")
+app.secret_key = os.getenv("SECRET_KEY", "branddefend-dev-key-change-in-production")
 
 # SMTP Configuration (set via Render environment variables)
 SMTP_HOST = os.getenv("SMTP_HOST", "")
@@ -54,6 +54,10 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "legal@byerim.com")
+
+# Resend API (alternative to SMTP — preferred if set)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM = os.getenv("RESEND_FROM", "BrandDefend <legal@byerim.com>")
 
 # Initialize database and default users on startup
 init_db()
@@ -330,6 +334,30 @@ def require_auth(f):
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Routes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    """
+    Keep-alive endpoint.
+    Ping this every 5 minutes from cron-job.org (free) to prevent
+    Render free tier from spinning down.
+    Setup: https://cron-job.org → New cron job → URL: https://brand-shield.onrender.com/health
+    Schedule: every 5 minutes.
+    """
+    from datetime import datetime, timezone
+    last_scan = query("SELECT started_at, status FROM scan_history ORDER BY id DESC LIMIT 1", one=True)
+    try:
+        from backend.services.scheduler import get_status
+        sched = get_status()
+    except Exception:
+        sched = {"scheduler_running": False}
+    return jsonify({
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "scheduler_running": sched.get("scheduler_running", False),
+        "last_scan": last_scan,
+    })
+
+
 @app.route("/login", methods=["GET"])
 def login_page():
     if check_auth():
@@ -442,7 +470,7 @@ def api_dashboard():
     dmca_resolved = dmca_res["c"] if dmca_res else 0
 
     # Suspicious accounts
-    sql_suspects = "SELECT COUNT(*) as c FROM suspects"
+    sql_suspects = "SELECT COUNT(*) as c FROM suspicious_accounts"
     suspects = query(sql_suspects, one=True)
     suspect_count = suspects["c"] if suspects else 0
 
@@ -870,10 +898,65 @@ def api_email_log():
     return jsonify({"emails": notices, "total": len(notices)})
 
 
+def _send_email_resend(to_email, subject, body_text, from_addr=None):
+    """Send email via Resend HTTP API. Returns (success, method, message)."""
+    import requests as _req
+    from_addr = from_addr or RESEND_FROM
+    payload = {
+        "from": from_addr,
+        "to": [to_email],
+        "subject": subject,
+        "text": body_text,
+    }
+    resp = _req.post(
+        "https://api.resend.com/emails",
+        json=payload,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        timeout=15,
+    )
+    if resp.status_code in (200, 201):
+        return True, "resend", f"Email sent via Resend (id={resp.json().get('id', '?')})"
+    else:
+        raise Exception(f"Resend API error {resp.status_code}: {resp.text[:200]}")
+
+
+def _send_email_smtp(to_email, subject, body_text):
+    """Send email via SMTP. Returns (success, method, message)."""
+    msg = MIMEMultipart()
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body_text, "plain"))
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+    return True, "smtp", "Email sent via SMTP"
+
+
+def send_email(to_email, subject, body_text):
+    """
+    Send email using the best available method:
+    1. Resend API (if RESEND_API_KEY set)
+    2. SMTP (if SMTP_HOST + SMTP_USER set)
+    3. Simulated (log only)
+    Returns (success, method, message).
+    """
+    if RESEND_API_KEY:
+        return _send_email_resend(to_email, subject, body_text)
+    elif SMTP_HOST and SMTP_USER:
+        return _send_email_smtp(to_email, subject, body_text)
+    else:
+        return True, "simulated", "No email provider configured — simulated send."
+
+
 @app.route("/api/email/send", methods=["POST"])
 @require_auth
 def api_email_send():
-    """Send an email via SMTP."""
+    """Send an email via Resend (preferred) or SMTP fallback."""
     data = request.get_json() or {}
     to_email = data.get("to")
     subject = data.get("subject")
@@ -883,28 +966,13 @@ def api_email_send():
     if not to_email or not subject or not body_text:
         return jsonify({"error": "to, subject, and body are required"}), 400
 
-    if not SMTP_HOST or not SMTP_USER:
-        if notice_id:
-            now = datetime.now(timezone.utc).isoformat()
-            execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?",
-                    ("sent", now, notice_id))
-        return jsonify({"success": True, "method": "simulated", "message": "SMTP not configured - simulated send."})
-
     try:
-        msg = MIMEMultipart()
-        msg["From"] = SMTP_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body_text, "plain"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
+        success, method, message = send_email(to_email, subject, body_text)
         if notice_id:
             now = datetime.now(timezone.utc).isoformat()
             execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?",
                     ("sent", now, notice_id))
-        return jsonify({"success": True, "method": "smtp", "message": "Email sent successfully"})
+        return jsonify({"success": True, "method": method, "message": message})
     except Exception as e:
         return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
 
@@ -946,25 +1014,12 @@ def api_dmca_send(nid):
     body_text = notice.get("body", "")
     if not to_email:
         return jsonify({"error": "No recipient email for this notice"}), 400
-    if not SMTP_HOST or not SMTP_USER:
-        now = datetime.now(timezone.utc).isoformat()
-        execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?", ("sent", now, nid))
-        updated = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
-        return jsonify({"success": True, "method": "simulated", "message": f"DMCA notice sent to {to_email} (simulated)", "notice": updated})
     try:
-        msg = MIMEMultipart()
-        msg["From"] = SMTP_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body_text, "plain"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
+        success, method, message = send_email(to_email, subject, body_text)
         now = datetime.now(timezone.utc).isoformat()
         execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?", ("sent", now, nid))
         updated = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
-        return jsonify({"success": True, "method": "smtp", "notice": updated})
+        return jsonify({"success": True, "method": method, "message": message, "notice": updated})
     except Exception as e:
         return jsonify({"error": f"Failed to send: {str(e)}"}), 500
 
@@ -1051,7 +1106,7 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
 
     print("=" * 60)
-    print("  Brand Shield v2.0 Ã¢ÂÂ Protecting @erim & @byerim")
+    print("  BrandDefend — Protecting @erim & @byerim")
     print(f"  Dashboard: http://localhost:{port}")
     print(f"  Login required (users: sat, erim)")
     print("=" * 60)

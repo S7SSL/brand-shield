@@ -188,8 +188,11 @@ def run_brand_scan(brand_key, brand_config):
     """
     Run a full scan for a single brand.
     Returns (items_scanned, threats_found).
+
+    Search priority:
+      1. Google Custom Search API (if GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX are set)
+      2. DuckDuckGo HTML scraper (no key required — always available as fallback)
     """
-    from backend.scrapers.google_search import search_brand
     from backend.scrapers.web_scraper import extract_profile_data
     from backend.services.detector import score_result
 
@@ -197,14 +200,17 @@ def run_brand_scan(brand_key, brand_config):
     weights = _get_weights()
     rate_delay = _get_rate_delay()
 
-    if not api_key or not cx or api_key == "YOUR_KEY_HERE":
-        logger.warning(f"Google API keys not configured, skipping {brand_key}")
-        return 0, 0
-
     logger.info(f"Scanning brand: {brand_key}")
 
-    # Step 1: Google search
-    results = search_brand(brand_key, brand_config, api_key, cx, rate_delay)
+    # Step 1: Choose search backend
+    if api_key and cx and api_key not in ("", "YOUR_KEY_HERE"):
+        logger.info(f"[Scanner] Using Google CSE for {brand_key}")
+        from backend.scrapers.google_search import search_brand
+        results = search_brand(brand_key, brand_config, api_key, cx, rate_delay)
+    else:
+        logger.info(f"[Scanner] Google API keys not set — using DuckDuckGo fallback for {brand_key}")
+        from backend.scrapers.duckduckgo_search import search_brand
+        results = search_brand(brand_key, brand_config, rate_delay=rate_delay)
     items_scanned = len(results)
     threats_found = 0
 

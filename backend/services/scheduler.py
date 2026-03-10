@@ -16,15 +16,7 @@ _is_enabled = True
 def _run_scheduled_scan():
     """Callback for scheduled scan execution."""
     if not _is_enabled:
-        _scheduler.add_job(
-        _run_auto_resolve,
-        trigger=CronTrigger(hour=0, minute=0),
-        id="brand_shield_auto_resolve",
-        name="Brand Shield daily auto-resolve (midnight UTC)",
-        replace_existing=True,
-    )
-
-    logger.info("Scheduled scan skipped (disabled)")
+        logger.info("Scheduled scan skipped (disabled)")
         return
 
     logger.info("Scheduled scan starting...")
@@ -48,9 +40,41 @@ def _run_weekly_report():
         if result.get("sent"):
             logger.info(f"Weekly report sent to {result.get('recipients')}")
         else:
-            logger.warning(f"Weekly report not sent: {result.get('reason', result.get('error', 'unknown'))}")
+            logger.warning(
+                f"Weekly report not sent: {result.get('reason', result.get('error', 'unknown'))}"
+            )
     except Exception as e:
         logger.error(f"Weekly report failed: {e}", exc_info=True)
+
+
+def _run_auto_resolve():
+    """Auto-resolve threats older than 24 hours that haven't been actioned."""
+    try:
+        from datetime import datetime, timezone, timedelta
+        from backend.database import query, execute
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        old_threats = query(
+            "SELECT id FROM threats WHERE status = 'new' AND detected_at < ?",
+            (cutoff,),
+        )
+        if old_threats:
+            now = datetime.now(timezone.utc).isoformat()
+            for t in old_threats:
+                execute(
+                    "UPDATE threats SET status = 'resolved', resolved_at = ? WHERE id = ?",
+                    (now, t["id"]),
+                )
+            logger.info(
+                "[AUTO-RESOLVE] Resolved %d stale threats (older than 24h)",
+                len(old_threats),
+            )
+        else:
+            logger.info("[AUTO-RESOLVE] No stale threats to resolve")
+    except Exception as exc:
+        logger.error("[AUTO-RESOLVE] Error: %s", exc)
 
 
 def init_scheduler(app=None):
@@ -89,10 +113,20 @@ def init_scheduler(app=None):
         replace_existing=True,
     )
 
+    # Daily auto-resolve job (midnight UTC)
+    _scheduler.add_job(
+        _run_auto_resolve,
+        trigger=CronTrigger(hour=0, minute=0),
+        id="brand_shield_auto_resolve",
+        name="Brand Shield daily auto-resolve (midnight UTC)",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info(
         f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours, "
-        f"weekly report every Monday 8AM UTC"
+        f"weekly report every Monday 8AM UTC, "
+        f"auto-resolve every midnight UTC"
     )
 
 
@@ -134,32 +168,6 @@ def get_status():
         ],
     }
 
-
-
-
-def _run_auto_resolve():
-    """Auto-resolve threats older than 24 hours that haven't been actioned."""
-    try:
-        from datetime import datetime, timezone, timedelta
-        from backend.database import query, execute
-
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-        old_threats = query(
-            "SELECT id FROM threats WHERE status = 'new' AND detected_at < ?",
-            (cutoff,),
-        )
-        if old_threats:
-            now = datetime.now(timezone.utc).isoformat()
-            for t in old_threats:
-                execute(
-                    "UPDATE threats SET status = 'resolved', resolved_at = ? WHERE id = ?",
-                    (now, t["id"]),
-                )
-            logger.info("[AUTO-RESOLVE] Resolved %d stale threats (older than 24h)", len(old_threats))
-        else:
-            logger.info("[AUTO-RESOLVE] No stale threats to resolve")
-    except Exception as exc:
-        logger.error("[AUTO-RESOLVE] Error: %s", exc)
 
 def trigger_report_now():
     """Manually trigger a weekly report (called from API)."""
