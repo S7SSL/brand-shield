@@ -20,7 +20,9 @@ HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-GB,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    # NOTE: Do NOT include 'br' (brotli) — requests can't decode brotli without
+    # the brotli package, and DDG will serve brotli if we advertise support.
+    "Accept-Encoding": "gzip, deflate",
     "Referer": "https://duckduckgo.com/",
     "DNT": "1",
 }
@@ -63,10 +65,11 @@ def _ddg_search(query: str, num_results: int = 10) -> list:
     """
     import requests
     from bs4 import BeautifulSoup
+    from urllib.parse import parse_qs, urlparse as _up
 
     results = []
     try:
-        params = {"q": query, "kl": "uk-en", "kp": "-1"}  # UK English, safe search off
+        params = {"q": query, "kl": "uk-en", "kp": "-1"}
         response = requests.post(
             DDG_HTML_URL,
             data=params,
@@ -77,38 +80,37 @@ def _ddg_search(query: str, num_results: int = 10) -> list:
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # DuckDuckGo HTML results are in div.result or div.web-result
-        result_divs = soup.find_all("div", class_=re.compile(r"result"))
-
-        for div in result_divs:
+        # DDG HTML structure: div.result (organic) — exclude div.result--ad
+        for div in soup.find_all("div", class_="result"):
             if len(results) >= num_results:
                 break
+            # Skip ads
+            div_classes = div.get("class", [])
+            if "result--ad" in div_classes:
+                continue
 
-            # Title + URL
-            title_tag = div.find("a", class_=re.compile(r"result__a"))
+            title_tag = div.find("a", class_="result__a")
             if not title_tag:
                 continue
+
             title = title_tag.get_text(strip=True)
             raw_url = title_tag.get("href", "")
 
-            # DDG sometimes wraps URLs — extract the real one
-            if raw_url.startswith("/"):
-                # Relative redirect URL — parse the uddg param
-                from urllib.parse import parse_qs, urlparse as _up
+            # DDG wraps results in redirect URLs — unwrap them
+            real_url = raw_url
+            if "duckduckgo.com/l/" in raw_url or "/l/?" in raw_url:
+                parsed = _up(raw_url if raw_url.startswith("http") else "https://duckduckgo.com" + raw_url)
+                qs = parse_qs(parsed.query)
+                real_url = qs.get("uddg", [raw_url])[0]
+            elif raw_url.startswith("/l/?"):
                 parsed = _up("https://duckduckgo.com" + raw_url)
                 qs = parse_qs(parsed.query)
                 real_url = qs.get("uddg", [raw_url])[0]
-            else:
-                real_url = raw_url
 
-            # Skip ads / empty
-            if not real_url or real_url.startswith("javascript"):
+            if not real_url or real_url.startswith("javascript") or "duckduckgo.com" in real_url:
                 continue
 
-            # Snippet
-            snippet_tag = div.find("a", class_=re.compile(r"result__snippet"))
-            if not snippet_tag:
-                snippet_tag = div.find("div", class_=re.compile(r"result__snippet"))
+            snippet_tag = div.find("a", class_="result__snippet")
             snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
 
             results.append({
