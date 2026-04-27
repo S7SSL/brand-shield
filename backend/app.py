@@ -59,6 +59,10 @@ SMTP_FROM = os.getenv("SMTP_FROM", "legal@byerim.com")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM = os.getenv("RESEND_FROM", "BrandDefend <legal@byerim.com>")
 
+# BCC every outgoing DMCA / report to this address for audit trail.
+# Set LEGAL_BCC="" on Render to disable.
+LEGAL_BCC = os.getenv("LEGAL_BCC", "legal@byerim.com").strip()
+
 # Initialize database and default users on startup
 init_db()
 setup_default_users()
@@ -342,19 +346,50 @@ def health_check():
     Render free tier from spinning down.
     Setup: https://cron-job.org → New cron job → URL: https://brand-shield.onrender.com/health
     Schedule: every 5 minutes.
+
+    Returns status="degraded" (HTTP 200 still, so the keep-alive cron stays
+    happy) when the last 3 finished scans all returned 0 items_scanned OR
+    were marked failed — so an external monitor can tell the search backend
+    is broken even though the app itself is up.
     """
     from datetime import datetime, timezone
-    last_scan = query("SELECT started_at, status FROM scan_history ORDER BY id DESC LIMIT 1", one=True)
+    last_scan = query(
+        "SELECT started_at, status, items_scanned, threats_found, error_message "
+        "FROM scan_history ORDER BY id DESC LIMIT 1",
+        one=True,
+    )
+    recent_scans = query(
+        "SELECT status, items_scanned FROM scan_history "
+        "WHERE status IN ('completed', 'failed') "
+        "ORDER BY id DESC LIMIT 3"
+    )
     try:
         from backend.services.scheduler import get_status
         sched = get_status()
     except Exception:
         sched = {"scheduler_running": False}
+
+    # Degrade if every one of the last 3 finished scans is failed or scanned 0 items.
+    degraded = False
+    if recent_scans and len(recent_scans) >= 1:
+        bad = sum(
+            1 for s in recent_scans
+            if s["status"] == "failed" or (s["items_scanned"] or 0) == 0
+        )
+        if bad == len(recent_scans):
+            degraded = True
+
+    backend_in_use = "google_cse" if (
+        os.getenv("GOOGLE_CSE_API_KEY") and os.getenv("GOOGLE_CSE_CX")
+    ) else "duckduckgo"
+
     return jsonify({
-        "status": "ok",
+        "status": "degraded" if degraded else "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "scheduler_running": sched.get("scheduler_running", False),
+        "search_backend": backend_in_use,
         "last_scan": last_scan,
+        "recent_scans": recent_scans,
     })
 
 
@@ -908,6 +943,9 @@ def _send_email_resend(to_email, subject, body_text, from_addr=None):
         "subject": subject,
         "text": body_text,
     }
+    # BCC the legal address (if configured and not already the recipient)
+    if LEGAL_BCC and LEGAL_BCC.lower() != (to_email or "").lower():
+        payload["bcc"] = [LEGAL_BCC]
     resp = _req.post(
         "https://api.resend.com/emails",
         json=payload,
@@ -930,10 +968,17 @@ def _send_email_smtp(to_email, subject, body_text):
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(body_text, "plain"))
+
+    # Build recipient list — BCC is intentionally NOT in headers, but is passed
+    # as an envelope recipient so the legal address still receives the message.
+    recipients = [to_email]
+    if LEGAL_BCC and LEGAL_BCC.lower() != (to_email or "").lower():
+        recipients.append(LEGAL_BCC)
+
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
+        server.send_message(msg, from_addr=SMTP_FROM, to_addrs=recipients)
     return True, "smtp", "Email sent via SMTP"
 
 

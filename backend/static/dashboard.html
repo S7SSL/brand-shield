@@ -1072,34 +1072,48 @@
 
         // Load stats
         async function loadStats() {
-            const data = await api('/api/dashboard/stats');
+            // /api/dashboard/stats has the rich breakdowns (by_brand, by_platform, ...)
+            // used elsewhere on the page, but its `total` filters out BOTH
+            // 'resolved' and 'reported', while `by_severity` filters NOTHING — so
+            // the cards used to show "0 Active / 5 Critical/High" together. Read
+            // the four headline cards from /api/dashboard, which is consistent.
+            const [data, summary] = await Promise.all([
+                api('/api/dashboard/stats'),
+                api('/api/dashboard'),
+            ]);
             if (!data) return;
 
             dashboardData = data;
-            const stats = data.threats;
-            const dmca = data.dmca;
-            const suspects = data.suspects;
+
+            const active = summary?.active_threats ?? data.threats.total ?? 0;
+            const newCount = summary?.new_detected ?? data.threats.new ?? 0;
+            const crit = summary?.critical_count ?? data.threats.by_severity?.critical ?? 0;
+            const high = summary?.high_count ?? data.threats.by_severity?.high ?? 0;
+            const dmcaTotal = summary?.dmca_notices ?? data.dmca?.total ?? 0;
+            const dmcaSuccess = summary?.dmca_success_rate ?? data.dmca?.success_rate ?? 0;
+            const suspectTotal = summary?.suspect_accounts ?? data.suspects?.total ?? 0;
+            const resolved = summary?.resolved_threats ?? data.threats.resolved ?? 0;
 
             const statsHtml = `
                 <div class="stat-card threats">
                     <div class="stat-label">Active Threats</div>
-                    <div class="stat-value">${stats.total}</div>
-                    <div class="stat-subtitle">${stats.new} new detected</div>
+                    <div class="stat-value">${active}</div>
+                    <div class="stat-subtitle">${newCount} new detected</div>
                 </div>
                 <div class="stat-card severity">
                     <div class="stat-label">Critical / High</div>
-                    <div class="stat-value">${(stats.by_severity?.critical || 0) + (stats.by_severity?.high || 0)}</div>
-                    <div class="stat-subtitle">${stats.by_severity?.critical || 0} critical, ${stats.by_severity?.high || 0} high</div>
+                    <div class="stat-value">${crit + high}</div>
+                    <div class="stat-subtitle">${crit} critical, ${high} high</div>
                 </div>
                 <div class="stat-card dmca">
                     <div class="stat-label">DMCA Notices</div>
-                    <div class="stat-value">${dmca.total}</div>
-                    <div class="stat-subtitle">${dmca.success_rate}% success rate</div>
+                    <div class="stat-value">${dmcaTotal}</div>
+                    <div class="stat-subtitle">${dmcaSuccess}% success rate</div>
                 </div>
                 <div class="stat-card suspects">
                     <div class="stat-label">Suspicious Accounts</div>
-                    <div class="stat-value">${suspects.total}</div>
-                    <div class="stat-subtitle">${stats.resolved} threats resolved</div>
+                    <div class="stat-value">${suspectTotal}</div>
+                    <div class="stat-subtitle">${resolved} threats resolved</div>
                 </div>
             `;
 

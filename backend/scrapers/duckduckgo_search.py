@@ -11,6 +11,12 @@ from urllib.parse import urlparse, urlencode, quote_plus
 logger = logging.getLogger(__name__)
 
 DDG_HTML_URL = "https://html.duckduckgo.com/html/"
+DDG_LITE_URL = "https://lite.duckduckgo.com/lite/"
+
+# Per-request timeout (seconds). Kept tight so a blocked endpoint doesn't
+# burn the whole scan window — with ~24 queries × old 20s timeout the
+# free-tier scan was 8+ minutes of pure timeouts.
+REQUEST_TIMEOUT = 8
 
 HEADERS = {
     "User-Agent": (
@@ -58,74 +64,156 @@ def detect_platform(url: str) -> str:
     return "web"
 
 
+def _unwrap_ddg_url(raw_url: str) -> str:
+    """Unwrap DDG redirect URLs (l/?uddg=...) into the real destination."""
+    from urllib.parse import parse_qs, urlparse as _up
+    if not raw_url:
+        return ""
+    if "duckduckgo.com/l/" in raw_url or raw_url.startswith("/l/?"):
+        full = raw_url if raw_url.startswith("http") else "https://duckduckgo.com" + raw_url
+        try:
+            qs = parse_qs(_up(full).query)
+            return qs.get("uddg", [raw_url])[0]
+        except Exception:
+            return raw_url
+    return raw_url
+
+
+def _parse_html_results(html: str, num_results: int) -> list:
+    """Parse the html.duckduckgo.com response into result dicts."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    out = []
+    for div in soup.find_all("div", class_="result"):
+        if len(out) >= num_results:
+            break
+        if "result--ad" in (div.get("class") or []):
+            continue
+        title_tag = div.find("a", class_="result__a")
+        if not title_tag:
+            continue
+        title = title_tag.get_text(strip=True)
+        real_url = _unwrap_ddg_url(title_tag.get("href", ""))
+        if not real_url or real_url.startswith("javascript") or "duckduckgo.com" in real_url:
+            continue
+        snippet_tag = div.find("a", class_="result__snippet")
+        snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
+        out.append({
+            "title": title,
+            "url": real_url,
+            "snippet": snippet,
+            "platform": detect_platform(real_url),
+        })
+    return out
+
+
+def _parse_lite_results(html: str, num_results: int) -> list:
+    """Parse the lite.duckduckgo.com response. Lite uses a flat <table> layout
+    with result links on rows whose first <a> is the title; the snippet is in
+    the next row's td.
+    """
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    out = []
+    seen = set()
+    # Lite results: each result link has class "result-link" in modern lite,
+    # or is the first <a> in a row with non-empty href in older variants.
+    anchors = soup.select("a.result-link") or [
+        a for a in soup.find_all("a") if a.get("href", "").startswith(("/l/?", "http"))
+    ]
+    for a in anchors:
+        if len(out) >= num_results:
+            break
+        real_url = _unwrap_ddg_url(a.get("href", ""))
+        if not real_url or real_url in seen:
+            continue
+        if real_url.startswith("javascript") or "duckduckgo.com" in real_url:
+            continue
+        seen.add(real_url)
+        title = a.get_text(strip=True)
+        if not title:
+            continue
+        # Snippet usually lives a couple of siblings down — best-effort.
+        snippet = ""
+        parent_tr = a.find_parent("tr")
+        if parent_tr is not None:
+            nxt = parent_tr.find_next_sibling("tr")
+            if nxt is not None:
+                td = nxt.find("td", class_="result-snippet") or nxt.find("td")
+                if td:
+                    snippet = td.get_text(strip=True)
+        out.append({
+            "title": title,
+            "url": real_url,
+            "snippet": snippet,
+            "platform": detect_platform(real_url),
+        })
+    return out
+
+
 def _ddg_search(query: str, num_results: int = 10) -> list:
     """
-    Execute a DuckDuckGo HTML search and parse results.
+    Execute a DuckDuckGo search and parse results.
+    Tries the HTML endpoint first, falls back to the LITE endpoint when the
+    HTML endpoint returns 0 parseable results (which happens when DDG serves
+    a CAPTCHA, an empty SERP for the bot UA, or a 202 anti-bot interstitial).
+
     Returns list of {title, url, snippet, platform} dicts.
+    Raises RuntimeError when BOTH endpoints fail in a way the caller should
+    surface (network error or zero parseable results from both).
     """
     import requests
-    from bs4 import BeautifulSoup
-    from urllib.parse import parse_qs, urlparse as _up
 
-    results = []
+    last_error = None
+    params = {"q": query, "kl": "uk-en", "kp": "-1"}
+
+    # Attempt 1: html endpoint
     try:
-        params = {"q": query, "kl": "uk-en", "kp": "-1"}
         response = requests.post(
             DDG_HTML_URL,
             data=params,
             headers=HEADERS,
-            timeout=20,
+            timeout=REQUEST_TIMEOUT,
             allow_redirects=True,
         )
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # DDG HTML structure: div.result (organic) — exclude div.result--ad
-        for div in soup.find_all("div", class_="result"):
-            if len(results) >= num_results:
-                break
-            # Skip ads
-            div_classes = div.get("class", [])
-            if "result--ad" in div_classes:
-                continue
-
-            title_tag = div.find("a", class_="result__a")
-            if not title_tag:
-                continue
-
-            title = title_tag.get_text(strip=True)
-            raw_url = title_tag.get("href", "")
-
-            # DDG wraps results in redirect URLs — unwrap them
-            real_url = raw_url
-            if "duckduckgo.com/l/" in raw_url or "/l/?" in raw_url:
-                parsed = _up(raw_url if raw_url.startswith("http") else "https://duckduckgo.com" + raw_url)
-                qs = parse_qs(parsed.query)
-                real_url = qs.get("uddg", [raw_url])[0]
-            elif raw_url.startswith("/l/?"):
-                parsed = _up("https://duckduckgo.com" + raw_url)
-                qs = parse_qs(parsed.query)
-                real_url = qs.get("uddg", [raw_url])[0]
-
-            if not real_url or real_url.startswith("javascript") or "duckduckgo.com" in real_url:
-                continue
-
-            snippet_tag = div.find("a", class_="result__snippet")
-            snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
-
-            results.append({
-                "title": title,
-                "url": real_url,
-                "snippet": snippet,
-                "platform": detect_platform(real_url),
-            })
-
+        results = _parse_html_results(response.text, num_results)
+        if results:
+            return results
+        # If html returned 0 parseable results, treat as soft-block and try lite.
+        logger.info(f"DDG html returned 0 results for '{query[:60]}' — trying lite")
     except requests.exceptions.RequestException as e:
-        logger.warning(f"DDG search failed for '{query[:60]}': {e}")
+        last_error = e
+        logger.warning(f"DDG html failed for '{query[:60]}': {e}")
     except Exception as e:
-        logger.error(f"DDG parse error for '{query[:60]}': {e}")
+        last_error = e
+        logger.error(f"DDG html parse error for '{query[:60]}': {e}")
 
-    return results
+    # Attempt 2: lite endpoint
+    try:
+        response = requests.post(
+            DDG_LITE_URL,
+            data=params,
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+        results = _parse_lite_results(response.text, num_results)
+        if results:
+            return results
+        logger.warning(f"DDG lite also returned 0 results for '{query[:60]}'")
+    except requests.exceptions.RequestException as e:
+        last_error = e
+        logger.warning(f"DDG lite failed for '{query[:60]}': {e}")
+    except Exception as e:
+        last_error = e
+        logger.error(f"DDG lite parse error for '{query[:60]}': {e}")
+
+    # Both endpoints failed or returned nothing parseable.
+    if last_error is not None:
+        raise RuntimeError(f"DDG both endpoints failed: {last_error}")
+    return []
 
 
 def build_search_queries(brand_key: str, brand_config: dict) -> list:
@@ -228,16 +316,29 @@ def build_search_queries(brand_key: str, brand_config: dict) -> list:
     return queries
 
 
+class DDGBackendBlocked(RuntimeError):
+    """Raised when both DDG endpoints fail/return-empty for the whole batch.
+    The scanner uses this to mark the scan as failed instead of silently completing.
+    """
+
+
 def search_brand(brand_key: str, brand_config: dict, rate_delay: float = 2.0) -> list:
     """
     Run all DDG search queries for a brand and return aggregated results.
 
     Returns list of dicts:
         [{url, title, snippet, platform, query_type, brand}, ...]
+
+    Raises DDGBackendBlocked if every query in the batch failed/returned 0
+    results — signals the caller that the search backend is unreachable so a
+    silent "0 threats found" result isn't recorded as a successful scan.
     """
     queries = build_search_queries(brand_key, brand_config)
     all_results = []
     seen_urls: set = set()
+
+    failures = 0
+    empty_returns = 0
 
     logger.info(f"[DDG] Starting {len(queries)} queries for {brand_key}")
 
@@ -245,7 +346,15 @@ def search_brand(brand_key: str, brand_config: dict, rate_delay: float = 2.0) ->
         q = query_info["q"]
         logger.info(f"[DDG] Query {i+1}/{len(queries)}: {q[:80]}...")
 
-        results = _ddg_search(q, num_results=10)
+        try:
+            results = _ddg_search(q, num_results=10)
+        except RuntimeError as e:
+            failures += 1
+            logger.warning(f"[DDG] Query {i+1} hard-failed: {e}")
+            results = []
+
+        if not results:
+            empty_returns += 1
 
         for result in results:
             url = result.get("url", "")
@@ -260,5 +369,17 @@ def search_brand(brand_key: str, brand_config: dict, rate_delay: float = 2.0) ->
         if i < len(queries) - 1:
             time.sleep(rate_delay)
 
-    logger.info(f"[DDG] Found {len(all_results)} unique results for {brand_key}")
+    logger.info(
+        f"[DDG] Found {len(all_results)} unique results for {brand_key} "
+        f"(failures={failures}, empty={empty_returns}/{len(queries)})"
+    )
+
+    # If every single query came back empty AND at least one hard-failed,
+    # treat the whole batch as a backend outage so the scan is marked failed.
+    if not all_results and queries and (failures > 0 or empty_returns == len(queries)):
+        raise DDGBackendBlocked(
+            f"DDG returned no results for any of {len(queries)} queries "
+            f"({failures} hard failures, {empty_returns} empty)"
+        )
+
     return all_results

@@ -23,6 +23,10 @@ REPORT_RECIPIENTS = os.getenv(
     "REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com"
 ).split(",")
 
+# BCC every weekly report to this address for audit trail.
+# Set LEGAL_BCC="" on Render to disable.
+LEGAL_BCC = os.getenv("LEGAL_BCC", "legal@byerim.com").strip()
+
 
 def _send_via_resend(to_addresses: list, subject: str, html_body: str, plain_body: str) -> bool:
     """Send email using Resend HTTP API."""
@@ -34,6 +38,10 @@ def _send_via_resend(to_addresses: list, subject: str, html_body: str, plain_bod
         "html": html_body,
         "text": plain_body,
     }
+    # BCC the legal/audit address (skip if it's already in the To list)
+    to_lower = {a.strip().lower() for a in to_addresses}
+    if LEGAL_BCC and LEGAL_BCC.lower() not in to_lower:
+        payload["bcc"] = [LEGAL_BCC]
     resp = requests.post(
         "https://api.resend.com/emails",
         json=payload,
@@ -362,10 +370,16 @@ def send_weekly_report():
             msg["To"] = ", ".join(REPORT_RECIPIENTS)
             msg.attach(MIMEText(plain_text, "plain"))
             msg.attach(MIMEText(html_body, "html"))
+            # Build envelope recipient list including the legal/audit BCC
+            recipients = list(REPORT_RECIPIENTS)
+            recipients_lower = {a.strip().lower() for a in recipients}
+            if LEGAL_BCC and LEGAL_BCC.lower() not in recipients_lower:
+                recipients.append(LEGAL_BCC)
+
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(FROM_EMAIL, REPORT_RECIPIENTS, msg.as_string())
+                server.sendmail(FROM_EMAIL, recipients, msg.as_string())
             logger.info(f"Weekly report sent via SMTP to {REPORT_RECIPIENTS}")
             _save_report_to_db(subject, html_body, data, sent=True)
             return {"sent": True, "method": "smtp", "recipients": REPORT_RECIPIENTS, "subject": subject}
