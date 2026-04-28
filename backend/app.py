@@ -393,6 +393,22 @@ def health_check():
     })
 
 
+@app.route("/favicon.svg", methods=["GET"])
+@app.route("/favicon.ico", methods=["GET"])
+def favicon():
+    """Serve the BD favicon. Public (no auth) so it loads on the login page too.
+    The .ico route serves the same SVG payload — modern browsers accept it; legacy
+    browsers fall back to no icon, which is fine."""
+    fpath = STATIC_DIR / "favicon.svg"
+    if not fpath.exists():
+        return "", 404
+    with open(fpath, "rb") as f:
+        return f.read(), 200, {
+            "Content-Type": "image/svg+xml",
+            "Cache-Control": "public, max-age=86400",
+        }
+
+
 @app.route("/login", methods=["GET"])
 def login_page():
     if check_auth():
