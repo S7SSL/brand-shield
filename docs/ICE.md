@@ -125,15 +125,82 @@ brand-shield/
 - **Build command**: `pip install -r requirements.txt`
 - **Start command**: `gunicorn backend.app:app --bind 0.0.0.0:$PORT`
 
-### ⚠ Critical limitation: ephemeral disk
+### Mac Mini deployment (current production)
 
-Starter tier does **not include a persistent disk** by default. Every redeploy wipes `/opt/render/project/src/data/`, so:
+The app runs on the Mac Mini under launchd. The SQLite DB lives at
+`~/Library/Application Support/brand-shield/brand_shield.db` — outside the
+repo, picked up by Time Machine, no ephemeral-disk problem. A daily launchd
+job snapshots it to `~/Documents/Claude/brand-shield-backups/` for fast
+restore.
 
-- `brand_shield.db` is reset on every deploy.
-- The `seed_demo_data()` function in `backend/app.py` re-seeds 8 demo threats / 3 suspects / 2 DMCA notices on every fresh DB.
-- Real threat detections discovered between deploys are LOST on the next deploy.
+**Components**
 
-**To fix permanently:** attach a Render Disk add-on (~$1/GB/month, 1GB plenty) and mount it at `/opt/render/project/src/data/`. Or migrate the DB to a managed Postgres (Render offers a free tier — 90-day expiry which can be renewed).
+| Component | Where | Notes |
+|---|---|---|
+| Code | `~/code/brand-shield/` | git clone of `S7SSL/brand-shield` |
+| Venv | `~/code/brand-shield/.venv/` | created by `scripts/install-mac.sh` |
+| Env vars | `~/code/brand-shield/.env` | gitignored; loaded by launchd |
+| Live DB | `~/Library/Application Support/brand-shield/brand_shield.db` | path comes from `BS_DATA_DIR` env var |
+| Daily snapshots | `~/Documents/Claude/brand-shield-backups/` | 90-day retention, `brand_shield-latest.db` symlink |
+| App service | `~/Library/LaunchAgents/com.byerim.brand-shield.plist` | gunicorn on `127.0.0.1:5050`, KeepAlive=true |
+| Backup service | `~/Library/LaunchAgents/com.byerim.brand-shield-backup.plist` | runs `scripts/backup-local.sh` daily 03:30 |
+| Logs | `~/Library/Logs/brand-shield.log`, `~/Library/Logs/brand-shield-backup.log` | tail with `tail -f` |
+
+**Network exposure**
+
+The app binds to `127.0.0.1:5050` only — it is NOT publicly accessible.
+[Tailscale](https://tailscale.com) provides private access from your other
+devices over the tailnet (the Mac shows up by its tailnet hostname). Any
+device signed into the same Tailscale account can reach
+`http://<mac-tailscale-name>:5050`.
+
+**First-time install**
+
+```bash
+cd ~/code/brand-shield
+bash scripts/install-mac.sh        # creates venv, installs deps, writes plists
+# edit ~/code/brand-shield/.env and paste in BRAVE_API_KEY, RESEND_API_KEY, SECRET_KEY
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.byerim.brand-shield.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.byerim.brand-shield-backup.plist
+curl -s http://127.0.0.1:5050/health   # should return JSON
+```
+
+**Operations**
+
+```bash
+# tail the app log
+tail -f ~/Library/Logs/brand-shield.log
+
+# restart the app after a code change
+cd ~/code/brand-shield && git pull
+launchctl bootout    gui/$(id -u)/com.byerim.brand-shield
+launchctl bootstrap  gui/$(id -u) ~/Library/LaunchAgents/com.byerim.brand-shield.plist
+
+# trigger a manual backup snapshot
+bash ~/code/brand-shield/scripts/backup-local.sh
+
+# inspect the latest backup
+ls -lh ~/Documents/Claude/brand-shield-backups/
+```
+
+**Restore from backup**
+
+```bash
+# stop the app
+launchctl bootout gui/$(id -u)/com.byerim.brand-shield
+# replace the live DB with the snapshot
+cp ~/Documents/Claude/brand-shield-backups/brand_shield-latest.db \
+   ~/Library/Application\ Support/brand-shield/brand_shield.db
+# restart
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.byerim.brand-shield.plist
+```
+
+### Render service (legacy, to be decommissioned)
+
+The Render Starter service at `brand-shield.onrender.com` is the previous
+production deployment. Its data is ephemeral (no persistent disk → wiped
+every redeploy). It will be paused/decommissioned once the Mac Mini
+deployment is verified and Tailscale access is set up.
 
 ### How to deploy a code change
 

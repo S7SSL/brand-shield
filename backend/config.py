@@ -5,9 +5,13 @@ Settings for monitoring @erim and @byerim brand protection.
 import os
 from pathlib import Path
 
-# Base paths - relative to project root for Render.com compatibility
+# Base paths.
+# Default DATA_DIR is `<repo>/data/` so the existing Render deployment keeps
+# working unchanged. Override with BS_DATA_DIR on the Mac Mini install so the
+# DB lives outside the repo (e.g. ~/Library/Application Support/brand-shield/),
+# survives `git pull`, and gets picked up by Time Machine.
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("BS_DATA_DIR", str(BASE_DIR / "data"))).expanduser().resolve()
 ASSETS_DIR = DATA_DIR / "assets"
 EVIDENCE_DIR = DATA_DIR / "evidence"
 DMCA_DIR = DATA_DIR / "dmca_notices"
