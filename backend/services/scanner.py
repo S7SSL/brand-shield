@@ -27,6 +27,12 @@ def _get_api_keys():
     return GOOGLE_CUSTOM_SEARCH_API_KEY, GOOGLE_CUSTOM_SEARCH_CX
 
 
+def _get_brave_api_key():
+    """Load Brave Search API key from env."""
+    import os
+    return os.getenv("BRAVE_API_KEY", "").strip()
+
+
 def _get_weights():
     """Load detection weights from config."""
     try:
@@ -189,26 +195,36 @@ def run_brand_scan(brand_key, brand_config):
     Run a full scan for a single brand.
     Returns (items_scanned, threats_found).
 
-    Search priority:
-      1. Google Custom Search API (if GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX are set)
-      2. DuckDuckGo HTML scraper (no key required — always available as fallback)
+    Search backend priority:
+      1. Brave Search API   (if BRAVE_API_KEY is set) — current primary, since
+         Google CSE is blocked at the byerim.com Workspace org level.
+      2. Google Custom Search API (if GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX are
+         set and accessible) — kept as fallback in case Brave goes down or
+         the org block is later lifted.
+      3. DuckDuckGo HTML scraper — last-resort, no key required.
     """
     from backend.scrapers.web_scraper import extract_profile_data
     from backend.services.detector import score_result
 
-    api_key, cx = _get_api_keys()
     weights = _get_weights()
     rate_delay = _get_rate_delay()
+
+    brave_key = _get_brave_api_key()
+    google_key, google_cx = _get_api_keys()
 
     logger.info(f"Scanning brand: {brand_key}")
 
     # Step 1: Choose search backend
-    if api_key and cx and api_key not in ("", "YOUR_KEY_HERE"):
+    if brave_key and brave_key not in ("", "YOUR_KEY_HERE"):
+        logger.info(f"[Scanner] Using Brave Search for {brand_key}")
+        from backend.scrapers.brave_search import search_brand
+        results = search_brand(brand_key, brand_config, brave_key, rate_delay=rate_delay)
+    elif google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
         logger.info(f"[Scanner] Using Google CSE for {brand_key}")
         from backend.scrapers.google_search import search_brand
-        results = search_brand(brand_key, brand_config, api_key, cx, rate_delay)
+        results = search_brand(brand_key, brand_config, google_key, google_cx, rate_delay)
     else:
-        logger.info(f"[Scanner] Google API keys not set — using DuckDuckGo fallback for {brand_key}")
+        logger.info(f"[Scanner] No paid API keys set — using DuckDuckGo fallback for {brand_key}")
         from backend.scrapers.duckduckgo_search import search_brand
         results = search_brand(brand_key, brand_config, rate_delay=rate_delay)
     items_scanned = len(results)

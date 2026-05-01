@@ -379,9 +379,12 @@ def health_check():
         if bad == len(recent_scans):
             degraded = True
 
-    backend_in_use = "google_cse" if (
-        os.getenv("GOOGLE_CSE_API_KEY") and os.getenv("GOOGLE_CSE_CX")
-    ) else "duckduckgo"
+    if os.getenv("BRAVE_API_KEY"):
+        backend_in_use = "brave_search"
+    elif os.getenv("GOOGLE_CSE_API_KEY") and os.getenv("GOOGLE_CSE_CX"):
+        backend_in_use = "google_cse"
+    else:
+        backend_in_use = "duckduckgo"
 
     return jsonify({
         "status": "degraded" if degraded else "ok",
