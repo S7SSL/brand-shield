@@ -1096,23 +1096,25 @@
             const suspectTotal = summary?.suspect_accounts ?? data.suspects?.total ?? 0;
             const resolved = summary?.resolved_threats ?? data.threats.resolved ?? 0;
 
+            // Each card is a drill-down: clicking jumps to the relevant tab/filter
+            // and scrolls to the list. Hover affordance via cursor + title.
             const statsHtml = `
-                <div class="stat-card threats">
+                <div class="stat-card threats" style="cursor:pointer" onclick="cardClickActive()" title="Show all active threats">
                     <div class="stat-label">Active Threats</div>
                     <div class="stat-value">${active}</div>
                     <div class="stat-subtitle">${newCount} new detected</div>
                 </div>
-                <div class="stat-card severity">
+                <div class="stat-card severity" style="cursor:pointer" onclick="cardClickCriticalHigh()" title="Show critical and high severity threats">
                     <div class="stat-label">Critical / High</div>
                     <div class="stat-value">${crit + high}</div>
                     <div class="stat-subtitle">${crit} critical, ${high} high</div>
                 </div>
-                <div class="stat-card dmca">
+                <div class="stat-card dmca" style="cursor:pointer" onclick="switchTab('dmca')" title="View DMCA notices">
                     <div class="stat-label">DMCA Notices</div>
                     <div class="stat-value">${dmcaTotal}</div>
                     <div class="stat-subtitle">${dmcaSuccess}% success rate</div>
                 </div>
-                <div class="stat-card suspects">
+                <div class="stat-card suspects" style="cursor:pointer" onclick="switchTab('suspects')" title="View suspicious accounts">
                     <div class="stat-label">Suspicious Accounts</div>
                     <div class="stat-value">${suspectTotal}</div>
                     <div class="stat-subtitle">${resolved} threats resolved</div>
@@ -1128,14 +1130,21 @@
             if (!data) return;
 
             let threats = data.threats || [];
-            
+
             // Apply filters
             const typeFilter = document.getElementById('threatTypeFilter').value;
             const statusFilter = document.getElementById('threatStatusFilter').value;
-            
-            // By default (Active view), hide resolved and reported threats
+
+            // Apply card-driven severity filter (set by clicking the Critical/High
+            // stat card; cleared when the user changes any other filter).
+            if (Array.isArray(currentSeverityFilter) && currentSeverityFilter.length) {
+                threats = threats.filter(t => currentSeverityFilter.includes(t.severity));
+            }
+
+            // By default (Active view), hide resolved threats only — "active" now
+            // matches the Active Threats stat card count (status != 'resolved').
             if (!statusFilter) {
-                threats = threats.filter(t => t.status !== 'resolved' && t.status !== 'reported');
+                threats = threats.filter(t => t.status !== 'resolved');
             } else {
                 threats = threats.filter(t => t.status === statusFilter);
             }
@@ -1371,6 +1380,36 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
 
             if (tabName === 'overview') loadScans();
+        }
+
+        // Stat-card drill-downs.
+        // currentSeverityFilter is a JS-side post-filter: an array of severity
+        // values (e.g. ['critical','high']) or null. Set by clicking the
+        // Critical/High card; cleared when the user touches type/status filters.
+        let currentSeverityFilter = null;
+
+        function cardClickActive() {
+            currentSeverityFilter = null;
+            document.getElementById('threatTypeFilter').value = '';
+            document.getElementById('threatStatusFilter').value = '';
+            switchTab('threats');
+            loadThreats();
+            setTimeout(() => {
+                const el = document.getElementById('threatsList');
+                if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 100);
+        }
+
+        function cardClickCriticalHigh() {
+            currentSeverityFilter = ['critical', 'high'];
+            document.getElementById('threatTypeFilter').value = '';
+            document.getElementById('threatStatusFilter').value = '';
+            switchTab('threats');
+            loadThreats();
+            setTimeout(() => {
+                const el = document.getElementById('threatsList');
+                if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 100);
         }
 
         // Set brand
@@ -1731,8 +1770,14 @@ function showDmcaStatus(message, type) {
             if (e.target === document.getElementById('modal')) closeModal();
         });
 
-        document.getElementById('threatTypeFilter').addEventListener('change', loadThreats);
-        document.getElementById('threatStatusFilter').addEventListener('change', loadThreats);
+        document.getElementById('threatTypeFilter').addEventListener('change', () => {
+            currentSeverityFilter = null;  // clear card-driven drill-down
+            loadThreats();
+        });
+        document.getElementById('threatStatusFilter').addEventListener('change', () => {
+            currentSeverityFilter = null;  // clear card-driven drill-down
+            loadThreats();
+        });
 
         // Demo/seed data for local preview (used when API is unavailable)
         const DEMO_DATA = {
