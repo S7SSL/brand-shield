@@ -64,6 +64,36 @@ ADULT_SITE_HINTS = ("erome", "porn", "xvideo", "xhamster", "xnxx", "coomer",
                     "kemono", "fapello", "thothub", "leak", "nsfw", "onlyfans",
                     "redgifs", "motherless", "spankbang")
 
+# Sites actively swept by the scheduled leak-site scan (site: queries).
+LEAK_SCAN_SITES = ("erome.com", "fapello.com", "thothub.vip", "coomer.su",
+                   "motherless.com", "spankbang.com")
+
+
+def claimant_missing_fields():
+    """Fields required before any notice may be auto-sent (a perjury
+    declaration with blank identity fields is void and gets ignored)."""
+    c = _claimant()
+    missing = []
+    if not c.get("signer") or "[" in str(c.get("signer")):
+        missing.append("DMCA_SIGNER_NAME")
+    if not c.get("address") or c.get("address") in ("London, United Kingdom",):
+        missing.append("DMCA_ADDRESS (full postal address)")
+    if not c.get("email"):
+        missing.append("DMCA_EMAIL")
+    return missing
+
+
+def send_ops_alert(subject: str, body: str):
+    """Notify the humans (REPORT_RECIPIENTS) via Resend — fire and forget."""
+    try:
+        from backend.app import send_email
+        recipients = os.getenv("REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com").split(",")
+        for r in recipients:
+            if r.strip():
+                send_email(r.strip(), f"[BrandDefend] {subject}", body)
+    except Exception as e:
+        logger.warning(f"Ops alert failed: {e}")
+
 
 def _merged_registry():
     """Registry with TAKEDOWN_CONTACTS env JSON merged on top."""
@@ -233,6 +263,16 @@ def create_takedown(url: str, brand: str = "@erim", basis: str = None,
         recipient["email"] = recipient_email
         recipient["source"] = "manual"
 
+    # Auto-send guard: never fire a notice whose sworn identity fields are
+    # blank — it would be legally void and platforms bin it.
+    if send:
+        missing = claimant_missing_fields()
+        if missing:
+            send = False
+            warnings.append(
+                "AUTO-SEND BLOCKED — claimant details incomplete. Set env vars: "
+                + ", ".join(missing) + ". Notice(s) saved as drafts.")
+
     domain = recipient["domain"]
     is_adult = any(h in domain for h in ADULT_SITE_HINTS)
     threat_type = "leaked_content" if is_adult else "content_theft"
@@ -277,12 +317,17 @@ def create_takedown(url: str, brand: str = "@erim", basis: str = None,
         if send and recipient["email"]:
             try:
                 from backend.app import send_email
-                send_email(recipient["email"], subject, body)
-                now = datetime.now(timezone.utc)
-                deadline = (now + timedelta(hours=deadline_hours)).isoformat()
-                execute("UPDATE dmca_notices SET status='sent', sent_at=?, deadline_at=? WHERE id=?",
-                        (now.isoformat(), deadline, nid))
-                sent = True
+                ok, method, msg = send_email(recipient["email"], subject, body)
+                if ok and method != "simulated":
+                    now = datetime.now(timezone.utc)
+                    deadline = (now + timedelta(hours=deadline_hours)).isoformat()
+                    execute("UPDATE dmca_notices SET status='sent', sent_at=?, deadline_at=? WHERE id=?",
+                            (now.isoformat(), deadline, nid))
+                    sent = True
+                else:
+                    warnings.append(
+                        f"Notice {nid} NOT sent — no email provider configured "
+                        f"(set RESEND_API_KEY). Saved as draft.")
             except Exception as e:
                 warnings.append(f"Send failed for notice {nid}: {e}")
         elif send and not recipient["email"]:
@@ -358,6 +403,7 @@ def check_deadlines_and_followup() -> dict:
                 else:
                     execute("UPDATE dmca_notices SET status = 'overdue' WHERE id = ?", (n["id"],))
                     overdue += 1
+                    _escalate_overdue(n)
             except Exception as e:
                 logger.error(f"Follow-up send failed for notice {n['id']}: {e}")
         else:
@@ -372,7 +418,50 @@ def check_deadlines_and_followup() -> dict:
             if now > fu + timedelta(hours=hours):
                 execute("UPDATE dmca_notices SET status = 'overdue' WHERE id = ?", (n["id"],))
                 overdue += 1
+                _escalate_overdue(n)
 
     if followed_up or overdue:
         logger.info(f"[TAKEDOWN] follow-ups sent: {followed_up}, marked overdue: {overdue}")
+        send_ops_alert(
+            f"Takedown deadlines: {followed_up} follow-up(s) sent, {overdue} now OVERDUE",
+            f"Hourly deadline check results:\n"
+            f"- Follow-ups auto-sent: {followed_up}\n"
+            f"- Escalated to overdue: {overdue}\n\n"
+            f"Overdue NCII notices should be reported to the FTC "
+            f"(https://reportfraud.ftc.gov — TAKE IT DOWN Act non-compliance). "
+            f"Registrar abuse escalation has been attempted automatically where "
+            f"a contact could be found.\n\n"
+            f"Escalation queue: https://brand-shield.onrender.com/ (DMCA tab) "
+            f"or GET /api/takedown/overdue")
     return {"followups_sent": followed_up, "marked_overdue": overdue}
+
+
+def _escalate_overdue(notice: dict):
+    """Auto-escalate an overdue notice to the registrar abuse contact (RDAP).
+    Runs unless AUTO_ESCALATE=false. The FTC complaint itself stays human —
+    it's a legal filing."""
+    if os.getenv("AUTO_ESCALATE", "true").lower() != "true":
+        return
+    domain = notice.get("recipient_platform") or ""
+    if not domain:
+        return
+    abuse = rdap_abuse_lookup(domain)
+    if not abuse or abuse == notice.get("recipient_email"):
+        return
+    try:
+        from backend.app import send_email
+        body = (
+            f"ABUSE ESCALATION — non-compliant takedown notice\n\n"
+            f"The website {domain} has failed to act on the formal notice below "
+            f"within the legally required timeframe"
+            + (" (48 hours — TAKE IT DOWN Act, Pub. L. 119-12, FTC-enforced)"
+               if notice.get("legal_basis") == "ncii" else
+               " (expeditious removal — 17 U.S.C. § 512)")
+            + ". As its registrar/host abuse contact, please review and take "
+              "action against this domain.\n\n--- ORIGINAL NOTICE ---\n\n"
+            + (notice.get("body") or ""))
+        ok, method, _ = send_email(abuse, "ABUSE ESCALATION: " + (notice.get("subject_line") or ""), body)
+        if ok and method != "simulated":
+            logger.info(f"[TAKEDOWN] Escalated notice {notice['id']} to registrar abuse: {abuse}")
+    except Exception as e:
+        logger.warning(f"Registrar escalation failed for notice {notice.get('id')}: {e}")

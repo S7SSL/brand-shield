@@ -1735,8 +1735,8 @@ function showDmcaStatus(message, type) {
             const body = `
                 <p style="color:#8b949e;font-size:13px;margin-bottom:12px;">
                     Paste the infringing URL. BrandDefend picks the legal route, resolves the
-                    recipient, and drafts the notice(s). Nothing is sent until you click Send
-                    on the draft.
+                    recipient, generates the notice(s) and <b style="color:#e6edf3">sends them
+                    automatically via Resend</b>. Deadlines are then tracked and chased for you.
                 </p>
                 <label style="color:#8b949e;font-size:12px;">Infringing URL</label>
                 <input id="tdUrl" type="url" placeholder="https://..." style="width:100%;margin:4px 0 12px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;">
@@ -1757,7 +1757,7 @@ function showDmcaStatus(message, type) {
                 <div id="tdResult" style="margin-top:10px;font-size:13px;"></div>`;
             const actions = `
                 <button class="modal-btn" onclick="closeModal()">Cancel</button>
-                <button class="modal-btn primary" onclick="submitTakedown()">Create Draft Notice(s)</button>`;
+                <button class="modal-btn primary" onclick="submitTakedown()">Send Takedown</button>`;
             showModal('New Takedown', body, actions);
         }
 
@@ -1774,7 +1774,8 @@ function showDmcaStatus(message, type) {
             };
             const result = await api('/api/takedown', { method: 'POST', body: payload });
             if (result && result.success) {
-                let html = `<span style="color:#3fb950">Created ${result.notices.length} draft notice(s) — route: ${result.basis}, recipient: ${escapeHtml(result.recipient.email || 'NOT RESOLVED')}</span>`;
+                const sentCount = result.notices.filter(n => n.sent_now).length;
+                let html = `<span style="color:#3fb950">${sentCount > 0 ? `SENT ${sentCount} notice(s) via Resend` : `Created ${result.notices.length} draft notice(s)`} — route: ${result.basis}, recipient: ${escapeHtml(result.recipient.email || 'NOT RESOLVED')}</span>`;
                 (result.warnings || []).forEach(w => { html += `<br><span style="color:#f0883e">⚠ ${escapeHtml(w)}</span>`; });
                 if (result.recipient.form_url) html += `<br><span style="color:#8b949e">Web form: <a href="${escapeHtml(result.recipient.form_url)}" target="_blank" style="color:#58a6ff">${escapeHtml(result.recipient.form_url)}</a></span>`;
                 out.innerHTML = html;

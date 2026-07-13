@@ -273,6 +273,101 @@ def run_brand_scan(brand_key, brand_config):
     return items_scanned, threats_found
 
 
+def _leak_search(query, num_results=10):
+    """Generic web search for leak-site sweeps (Brave preferred, safesearch OFF
+    so adult-site results aren't filtered; DDG fallback)."""
+    brave_key = _get_brave_api_key()
+    if brave_key and brave_key not in ("", "YOUR_KEY_HERE"):
+        import requests
+        try:
+            resp = requests.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params={"q": query, "count": min(num_results, 20),
+                        "country": "GB", "search_lang": "en", "safesearch": "off"},
+                headers={"Accept": "application/json",
+                         "X-Subscription-Token": brave_key},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                return [{"title": r.get("title", ""), "url": r.get("url", ""),
+                         "snippet": r.get("description", "")}
+                        for r in resp.json().get("web", {}).get("results", [])]
+        except Exception as e:
+            logger.warning(f"[LEAK-SCAN] Brave search failed: {e}")
+    try:
+        from backend.scrapers.duckduckgo_search import _ddg_search
+        return _ddg_search(query, num_results)
+    except Exception as e:
+        logger.warning(f"[LEAK-SCAN] DDG search failed: {e}")
+        return []
+
+
+def run_leak_site_scan(brand=None):
+    """
+    Sweep known leak/adult sites for brand content and auto-open takedowns.
+
+    For every hit on a leak-site domain: creates a critical 'leaked_content'
+    threat and runs the takedown pipeline (NCII/DMCA route auto-selected).
+    Notices are auto-SENT via Resend when AUTO_SEND_TAKEDOWNS=true, the
+    recipient is known from the registry/TAKEDOWN_CONTACTS, and the claimant
+    details (DMCA_SIGNER_NAME etc.) are configured — otherwise they are left
+    as drafts and flagged in the alert email.
+    """
+    import os
+    from backend.services.takedown import (
+        create_takedown, registrable_domain, ADULT_SITE_HINTS, LEAK_SCAN_SITES,
+    )
+
+    auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "true").lower() == "true"
+    scan_id = _start_scan_record("leak_site_scan", brand)
+    items, found = 0, 0
+    try:
+        brands = {brand: BRANDS[brand]} if brand and brand in BRANDS else BRANDS
+        for brand_key, cfg in brands.items():
+            names = [cfg.get("display_name", ""), brand_key.lstrip("@")]
+            names += cfg.get("keywords", [])[:2]
+            terms = [n for n in dict.fromkeys(names) if n]
+            queries = []
+            for site in LEAK_SCAN_SITES:
+                queries.append(f'"{terms[0]}" site:{site}')
+            queries.append(f'"{terms[0]}" leaked')
+            if len(terms) > 1:
+                queries.append(f'"{terms[1]}" leaked album')
+
+            for q in queries:
+                results = _leak_search(q)
+                items += len(results)
+                for r in results:
+                    url = r.get("url", "")
+                    domain = registrable_domain(url) if url else ""
+                    if not url or not any(h in domain for h in ADULT_SITE_HINTS):
+                        continue
+                    if _url_already_tracked(url):
+                        continue
+                    try:
+                        res = create_takedown(url, brand=brand_key, send=auto_send)
+                        found += 1
+                        sent = any(n.get("sent_now") for n in res["notices"])
+                        logger.info(f"[LEAK-SCAN] {url[:70]} -> "
+                                    f"{'notice SENT' if sent else 'draft (needs recipient/config)'}")
+                        from backend.services.takedown import send_ops_alert
+                        send_ops_alert(
+                            f"Leak-site hit: {url[:80]}",
+                            f"BrandDefend found brand content on a leak site and "
+                            f"{'SENT takedown notice(s) automatically' if sent else 'created DRAFT notice(s) — action needed'}.\n\n"
+                            f"URL: {url}\nBrand: {brand_key}\nRoute: {res['basis']}\n"
+                            f"Recipient: {res['recipient'].get('email') or 'UNRESOLVED — ' + str(res['recipient'].get('form_url'))}\n"
+                            + ("\nWarnings:\n- " + "\n- ".join(res["warnings"]) if res["warnings"] else "")
+                            + "\n\nDashboard: https://brand-shield.onrender.com/")
+                    except Exception as e:
+                        logger.error(f"[LEAK-SCAN] takedown failed for {url[:70]}: {e}")
+        _complete_scan_record(scan_id, items, found)
+    except Exception as e:
+        logger.error(f"[LEAK-SCAN] failed: {e}", exc_info=True)
+        _complete_scan_record(scan_id, items, found, str(e))
+    return {"scan_id": scan_id, "items_scanned": items, "threats_found": found}
+
+
 def run_full_scan(brand=None, platform=None):
     """
     Run a complete scan across all (or specified) brands.
@@ -306,6 +401,13 @@ def run_full_scan(brand=None, platform=None):
             items, threats = run_brand_scan(brand_key, brand_config)
             total_items += items
             total_threats += threats
+
+        # Leak-site sweep (adult/leak domains) — end-to-end: hits become
+        # threats + notices, auto-sent when config allows.
+        if not platform:
+            leak = run_leak_site_scan(brand=brand if brand in BRANDS else None)
+            total_items += leak.get("items_scanned", 0)
+            total_threats += leak.get("threats_found", 0)
 
         _complete_scan_record(scan_id, total_items, total_threats)
         logger.info(

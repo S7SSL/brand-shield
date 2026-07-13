@@ -868,12 +868,15 @@ def api_takedown():
         return jsonify({"error": "A valid http(s) url is required"}), 400
 
     from backend.services.takedown import create_takedown
+    # Fully automated by default: AUTO_SEND_TAKEDOWNS=true means notices go
+    # out via Resend immediately (blocked only if claimant env vars missing).
+    auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "true").lower() == "true"
     try:
         result = create_takedown(
             url=url,
             brand=data.get("brand", "@erim"),
             basis=data.get("basis"),
-            send=bool(data.get("send", False)),
+            send=bool(data.get("send", auto_send)),
             recipient_email=data.get("recipient_email"),
             severity=data.get("severity", "critical"),
             extra={k: data[k] for k in

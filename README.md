@@ -126,20 +126,40 @@ erome) need the address confirmed once in a browser, then stored:
 TAKEDOWN_CONTACTS={"erome.com": {"email": "<address from https://www.erome.com/s/report>"}}
 ```
 
-Notices are **drafts by default** — a human reviews and clicks Send (they
-carry statements made under penalty of perjury; don't automate the signing).
-Follow-ups on already-sent notices ARE automated: an hourly job checks
-deadlines, sends one escalating follow-up, then marks the notice `overdue`
-(escalation queue: `GET /api/takedown/overdue` — FTC complaint for NCII,
-host/registrar abuse for copyright).
+**Fully automated by default** (`AUTO_SEND_TAKEDOWNS=true`): notices are sent
+via Resend the moment they're generated — from the dashboard, the API, or the
+scheduled leak-site sweep. The only hard gate: auto-send is blocked until
+`DMCA_SIGNER_NAME`, `DMCA_ADDRESS`, and `DMCA_EMAIL` are set (a sworn notice
+with blank identity fields is legally void — set them once, then everything
+is zero-touch).
+
+The automation loop, end to end:
+
+1. **Discover** — 6-hourly scans now include a leak-site sweep
+   (`site:erome.com` etc. + "leaked" queries, safesearch off) alongside the
+   existing impersonation/counterfeit scans.
+2. **Notice** — every leak-site hit auto-creates a critical threat, picks the
+   route (NCII 48h / DMCA), resolves the recipient, generates and sends.
+3. **Chase** — hourly deadline job auto-sends one follow-up when the 48h/72h
+   clock expires.
+4. **Escalate** — still no response → notice marked `overdue`, registrar
+   abuse contact auto-emailed via RDAP lookup (`AUTO_ESCALATE=true`).
+5. **Alert** — every auto-sent notice, follow-up, and overdue escalation
+   emails `REPORT_RECIPIENTS` immediately; weekly report summarises.
+
+What stays human (deliberately): the one-time claimant config, confirming
+JS-hidden abuse emails (`TAKEDOWN_CONTACTS`), and filing FTC complaints for
+overdue NCII notices — that's a legal filing the alert email walks you through.
 
 Additional env vars:
 
 | Variable | Purpose |
 |---|---|
 | `ADMIN_USER` / `ADMIN_PASSWORD` | Dashboard login (required — see above) |
-| `DMCA_SIGNER_NAME` | Full legal name of the person signing notices |
-| `DMCA_ADDRESS` / `DMCA_PHONE` / `DMCA_EMAIL` | Claimant contact block on notices |
+| `DMCA_SIGNER_NAME` | Full legal name of the person signing notices (**required for auto-send**) |
+| `DMCA_ADDRESS` / `DMCA_PHONE` / `DMCA_EMAIL` | Claimant contact block (**address+email required for auto-send**) |
+| `AUTO_SEND_TAKEDOWNS` | Default `true` — auto-send notices via Resend; `false` = drafts for review |
+| `AUTO_ESCALATE` | Default `true` — auto-email registrar abuse contact when a notice goes overdue |
 | `TAKEDOWN_CONTACTS` | JSON map of domain → contact overrides |
 | `SEED_DEMO` | `true` to load demo data (default off — demo data no longer pollutes prod) |
 
