@@ -90,12 +90,58 @@ To upgrade to Google CSE:
 
 ---
 
-## Default Logins
+## Logins
 
-| Username | Password | Role |
+**Never commit passwords to this (public) repo.** Set `ADMIN_USER` and
+`ADMIN_PASSWORD` in the Render environment. If unset, a random password is
+generated on first boot and printed once to the server logs.
+
+> ⚠️ The previously hardcoded logins are permanently in git history and must
+> be considered compromised — delete `data/users.json` on the server, set the
+> env vars, and redeploy.
+
+---
+
+## End-to-End Takedowns
+
+The **+ New Takedown** button on the dashboard (or `POST /api/takedown`) runs
+the full pipeline: paste an infringing URL → threat record → correct legal
+route → recipient resolution → draft notice(s) → one-click send → automatic
+deadline tracking and follow-up.
+
+Legal routes (auto-selected by domain, overridable):
+
+| Route | Basis | Deadline tracked |
 |---|---|---|
-| `sat` | `BrandShield2026!` | Admin |
-| `erim` | `ByErim2026!` | Brand owner |
+| `ncii` | TAKE IT DOWN Act (Pub. L. 119-12) — non-consensual intimate imagery incl. deepfakes; FTC-enforced since 19 May 2026 | 48 hours |
+| `dmca` | 17 U.S.C. § 512(c)(3) copyright | 72 hours |
+| `both` | Sends both notices | per notice |
+
+Recipient resolution order: built-in registry (`backend/services/takedown.py`)
+→ `TAKEDOWN_CONTACTS` env JSON override → RDAP registrar-abuse lookup →
+manual. Sites that hide their abuse email behind JS bot-protection (e.g.
+erome) need the address confirmed once in a browser, then stored:
+
+```
+TAKEDOWN_CONTACTS={"erome.com": {"email": "<address from https://www.erome.com/s/report>"}}
+```
+
+Notices are **drafts by default** — a human reviews and clicks Send (they
+carry statements made under penalty of perjury; don't automate the signing).
+Follow-ups on already-sent notices ARE automated: an hourly job checks
+deadlines, sends one escalating follow-up, then marks the notice `overdue`
+(escalation queue: `GET /api/takedown/overdue` — FTC complaint for NCII,
+host/registrar abuse for copyright).
+
+Additional env vars:
+
+| Variable | Purpose |
+|---|---|
+| `ADMIN_USER` / `ADMIN_PASSWORD` | Dashboard login (required — see above) |
+| `DMCA_SIGNER_NAME` | Full legal name of the person signing notices |
+| `DMCA_ADDRESS` / `DMCA_PHONE` / `DMCA_EMAIL` | Claimant contact block on notices |
+| `TAKEDOWN_CONTACTS` | JSON map of domain → contact overrides |
+| `SEED_DEMO` | `true` to load demo data (default off — demo data no longer pollutes prod) |
 
 ---
 

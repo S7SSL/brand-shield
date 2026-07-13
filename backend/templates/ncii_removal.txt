@@ -1,0 +1,70 @@
+NON-CONSENSUAL INTIMATE IMAGERY REMOVAL REQUEST
+48-HOUR REMOVAL REQUIRED — TAKE IT DOWN ACT (PUB. L. 119-12)
+==============================================================
+
+Date: {{ date }}
+To:   {{ recipient_name }}
+
+This is a formal request for the removal of non-consensual intimate imagery
+under 47 U.S.C. § 223 as amended by the TAKE IT DOWN Act (Pub. L. 119-12),
+submitted on behalf of the individual depicted.
+
+Covered platforms are required by US federal law, enforced by the Federal
+Trade Commission, to remove reported non-consensual intimate imagery —
+including AI-generated or edited ("deepfake") depictions — within 48 HOURS
+of a valid request, and to make reasonable efforts to remove identical
+copies and re-uploads.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. IDENTITY AND AUTHORITY
+
+   Depicted individual:  {{ claimant_name }}
+   Submitted by:         {{ signer_name }} (authorised representative)
+   Contact email:        {{ claimant_email }}
+   Contact address:      {{ claimant_address }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. CONTENT TO BE REMOVED
+
+   URL: {{ infringing_url }}
+
+   Including every image and video at this location, and any copies,
+   re-uploads, or duplicates of the same material on your service.
+
+   The material contains intimate imagery depicting, or purporting to
+   depict, {{ claimant_name }}, published without consent. To the extent
+   any item is synthetic or edited, it is an unlawful digital forgery of
+   an identifiable individual under the same statute.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. STATEMENTS
+
+   I state in good faith that the depicted individual did not consent to
+   the publication of this material on your service. I am authorised to
+   act on their behalf. The information in this request is accurate.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. REQUESTED ACTION (WITHIN 48 HOURS)
+
+   (a) Remove or disable access to the material at the URL above;
+   (b) Make reasonable efforts to identify and remove all copies and
+       re-uploads of the same material;
+   (c) Take reasonable steps to prevent re-upload (hash-blocking);
+   (d) Confirm removal in writing to {{ claimant_email }}.
+
+   Failure to comply within 48 hours constitutes an unfair or deceptive
+   act or practice enforceable by the US Federal Trade Commission. As the
+   depicted individual is a UK resident, this material also engages the
+   intimate-image offences under the Online Safety Act 2023 (UK). All
+   rights and remedies are reserved in all jurisdictions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Electronic Signature: /s/ {{ signer_name }}
+Authorised representative of {{ claimant_name }}
+Date: {{ date }}
+Contact: {{ claimant_email }}

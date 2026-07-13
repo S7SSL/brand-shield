@@ -301,8 +301,10 @@ def seed_demo_data():
     print(f"[SEED] Added {len(demo_threats)} threats, {len(demo_suspects)} suspects, {len(demo_notices)} DMCA notices, {len(demo_scans)} scans")
 
 
-# Run seed
-seed_demo_data()
+# Demo data only when explicitly requested — never silently mix fake
+# threats into a production database.
+if os.getenv("SEED_DEMO", "false").lower() == "true":
+    seed_demo_data()
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Middleware Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -808,28 +810,29 @@ def api_dmca_generate():
     body = body.replace("{{ evidence_description }}", data.get("evidence_description",
         f"The content at the infringing URL matches our original content with {int(threat.get('confidence', 0) * 100)}% confidence."))
 
-    # Determine platform email
-    platform_emails = {
-        "instagram": "ip@fb.com",
-        "facebook": "ip@fb.com",
-        "tiktok": "legal@tiktok.com",
-        "shopify": "legal@shopify.com",
-        "amazon": "copyright@amazon.com",
-        "twitter": "copyright@twitter.com",
-        "youtube": "copyright@youtube.com",
-    }
-    recipient_email = platform_emails.get(threat.get("platform", ""), data.get("recipient_email", ""))
+    # Determine recipient: explicit override > registry/RDAP resolution
+    from backend.services.takedown import resolve_recipient, DEADLINE_HOURS
+    recipient_email = data.get("recipient_email", "")
+    recipient_info = None
+    if not recipient_email:
+        target = threat.get("detected_url") or threat.get("platform", "")
+        if target:
+            recipient_info = resolve_recipient(target)
+            recipient_email = recipient_info.get("email") or ""
+
+    legal_basis = "ncii" if notice_type == "ncii" else "dmca"
+    deadline_hours = DEADLINE_HOURS.get(legal_basis, 72)
 
     # Save notice
     notice_id = execute(
         """INSERT INTO dmca_notices (threat_id, notice_type, template_used, recipient_email,
-           recipient_platform, subject_line, body, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           recipient_platform, subject_line, body, status, legal_basis, deadline_hours)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             threat_id, notice_type, template_file, recipient_email,
             threat.get("platform", ""),
             f"DMCA Takedown Notice: {threat.get('threat_type', '')} on {threat.get('platform', '')}",
-            body, "draft",
+            body, "draft", legal_basis, deadline_hours,
         ),
     )
 
@@ -837,7 +840,64 @@ def api_dmca_generate():
     execute("UPDATE threats SET status = ? WHERE id = ?", ("reported", threat_id))
 
     notice = query("SELECT * FROM dmca_notices WHERE id = ?", (notice_id,), one=True)
-    return jsonify({"success": True, "notice": notice, "body_preview": body}), 201
+    resp = {"success": True, "notice": notice, "body_preview": body}
+    if recipient_info:
+        resp["recipient_info"] = recipient_info
+        if not recipient_email:
+            resp["warning"] = (
+                f"No email contact resolved for this target. "
+                + (f"Submit via form: {recipient_info.get('form_url')}" if recipient_info.get("form_url") else
+                   "Set a recipient before sending.")
+            )
+    return jsonify(resp), 201
+
+
+@app.route("/api/takedown", methods=["POST"])
+@require_auth
+def api_takedown():
+    """
+    End-to-end takedown: paste a URL, get threat + notice(s) with the right
+    legal route and recipient. Drafts by default; pass send=true to fire.
+
+    Body: {url, brand?, basis? ('dmca'|'ncii'|'both'), send?, recipient_email?,
+           original_url?, original_description?, evidence_description?}
+    """
+    data = request.get_json() or {}
+    url = (data.get("url") or "").strip()
+    if not url or not url.lower().startswith(("http://", "https://")):
+        return jsonify({"error": "A valid http(s) url is required"}), 400
+
+    from backend.services.takedown import create_takedown
+    try:
+        result = create_takedown(
+            url=url,
+            brand=data.get("brand", "@erim"),
+            basis=data.get("basis"),
+            send=bool(data.get("send", False)),
+            recipient_email=data.get("recipient_email"),
+            severity=data.get("severity", "critical"),
+            extra={k: data[k] for k in
+                   ("original_url", "original_description", "evidence_description",
+                    "recipient_name", "product_title") if data.get(k)},
+        )
+        return jsonify({"success": True, **result}), 201
+    except Exception as e:
+        return jsonify({"error": f"Takedown pipeline failed: {e}"}), 500
+
+
+@app.route("/api/takedown/overdue", methods=["GET"])
+@require_auth
+def api_takedown_overdue():
+    """Sent notices past deadline without a response — the escalation queue."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    overdue = query(
+        """SELECT d.*, t.detected_url, t.brand FROM dmca_notices d
+           LEFT JOIN threats t ON d.threat_id = t.id
+           WHERE d.response_at IS NULL AND
+                 (d.status = 'overdue' OR
+                  (d.status = 'sent' AND d.deadline_at IS NOT NULL AND d.deadline_at < ?))
+           ORDER BY d.deadline_at ASC""", (now_iso,))
+    return jsonify({"overdue": overdue, "total": len(overdue)})
 
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Suspects API Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -1033,9 +1093,8 @@ def api_email_send():
     try:
         success, method, message = send_email(to_email, subject, body_text)
         if notice_id:
-            now = datetime.now(timezone.utc).isoformat()
-            execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?",
-                    ("sent", now, notice_id))
+            from backend.services.takedown import mark_notice_sent
+            mark_notice_sent(notice_id)
         return jsonify({"success": True, "method": method, "message": message})
     except Exception as e:
         return jsonify({"error": f"Failed to send email: {str(e)}"}), 500
@@ -1080,8 +1139,8 @@ def api_dmca_send(nid):
         return jsonify({"error": "No recipient email for this notice"}), 400
     try:
         success, method, message = send_email(to_email, subject, body_text)
-        now = datetime.now(timezone.utc).isoformat()
-        execute("UPDATE dmca_notices SET status = ?, sent_at = ? WHERE id = ?", ("sent", now, nid))
+        from backend.services.takedown import mark_notice_sent
+        mark_notice_sent(nid)
         updated = query("SELECT * FROM dmca_notices WHERE id = ?", (nid,), one=True)
         return jsonify({"success": True, "method": method, "message": message, "notice": updated})
     except Exception as e:

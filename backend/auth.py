@@ -102,8 +102,25 @@ def has_users() -> bool:
 
 
 def setup_default_users():
-    """Create default admin users if none exist."""
-    if not has_users():
-        create_user("sat", "BrandShield2026!", "admin")
-        create_user("erim", "ByErim2026!", "admin")
-        print("[AUTH] Default users created: sat, erim")
+    """
+    Create default admin users if none exist.
+
+    SECURITY: this repo is public — passwords must NEVER be hardcoded here.
+    Set ADMIN_USER / ADMIN_PASSWORD in the environment (Render dashboard).
+    If unset, a random password is generated and printed ONCE to the server
+    log; read it from the Render logs and change it, or set the env vars.
+    """
+    if has_users():
+        return
+    username = os.getenv("ADMIN_USER", "sat")
+    password = os.getenv("ADMIN_PASSWORD", "")
+    generated = False
+    if not password:
+        password = secrets.token_urlsafe(16)
+        generated = True
+    create_user(username, password, "admin")
+    if generated:
+        print(f"[AUTH] Created admin user '{username}' with GENERATED password: "
+              f"{password}\n[AUTH] Set ADMIN_USER/ADMIN_PASSWORD env vars to control this.")
+    else:
+        print(f"[AUTH] Created admin user '{username}' from environment variables.")

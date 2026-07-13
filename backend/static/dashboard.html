@@ -875,12 +875,18 @@
             <div class="panel-header">
                 <h2 class="panel-title">Detected Threats</h2>
                 <div class="filter-group">
+                    <button class="filter-select" id="newTakedownBtn" onclick="openTakedownModal()"
+                            style="cursor:pointer;background:#238636;color:#fff;border-color:#2ea043;font-weight:600;">
+                        + New Takedown
+                    </button>
                     <select class="filter-select" id="threatTypeFilter">
                         <option value="">All Types</option>
                         <option value="counterfeit">Counterfeit</option>
                         <option value="impersonation">Impersonation</option>
                         <option value="trademark_violation">Trademark Violation</option>
                         <option value="unauthorized_resale">Unauthorized Resale</option>
+                        <option value="leaked_content">Leaked Content</option>
+                        <option value="content_theft">Content Theft</option>
                     </select>
                     <select class="filter-select" id="threatStatusFilter">
                         <option value="">Active</option>
@@ -1722,6 +1728,61 @@ function showDmcaStatus(message, type) {
 
         function closeModal() {
             document.getElementById('modal').classList.remove('active');
+        }
+
+        // ─── One-shot takedown: paste URL → threat + notice(s) ───
+        function openTakedownModal() {
+            const body = `
+                <p style="color:#8b949e;font-size:13px;margin-bottom:12px;">
+                    Paste the infringing URL. BrandDefend picks the legal route, resolves the
+                    recipient, and drafts the notice(s). Nothing is sent until you click Send
+                    on the draft.
+                </p>
+                <label style="color:#8b949e;font-size:12px;">Infringing URL</label>
+                <input id="tdUrl" type="url" placeholder="https://..." style="width:100%;margin:4px 0 12px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;">
+                <label style="color:#8b949e;font-size:12px;">Legal route</label>
+                <select id="tdBasis" style="width:100%;margin:4px 0 12px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;">
+                    <option value="">Auto (recommended)</option>
+                    <option value="ncii">NCII — intimate imagery, 48h removal (TAKE IT DOWN Act)</option>
+                    <option value="dmca">DMCA — copyright</option>
+                    <option value="both">Both</option>
+                </select>
+                <label style="color:#8b949e;font-size:12px;">Brand</label>
+                <select id="tdBrand" style="width:100%;margin:4px 0 12px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;">
+                    <option value="@erim">@erim (Erim Kaur)</option>
+                    <option value="@byerim">@byerim (ByErim)</option>
+                </select>
+                <label style="color:#8b949e;font-size:12px;">Recipient email (optional — auto-resolved if blank)</label>
+                <input id="tdRecipient" type="email" placeholder="abuse@example.com" style="width:100%;margin:4px 0 4px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;">
+                <div id="tdResult" style="margin-top:10px;font-size:13px;"></div>`;
+            const actions = `
+                <button class="modal-btn" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="submitTakedown()">Create Draft Notice(s)</button>`;
+            showModal('New Takedown', body, actions);
+        }
+
+        async function submitTakedown() {
+            const url = document.getElementById('tdUrl').value.trim();
+            const out = document.getElementById('tdResult');
+            if (!url) { out.innerHTML = '<span style="color:#f85149">Enter the infringing URL.</span>'; return; }
+            out.innerHTML = '<span style="color:#8b949e">Creating…</span>';
+            const payload = {
+                url,
+                brand: document.getElementById('tdBrand').value,
+                basis: document.getElementById('tdBasis').value || undefined,
+                recipient_email: document.getElementById('tdRecipient').value.trim() || undefined,
+            };
+            const result = await api('/api/takedown', { method: 'POST', body: payload });
+            if (result && result.success) {
+                let html = `<span style="color:#3fb950">Created ${result.notices.length} draft notice(s) — route: ${result.basis}, recipient: ${escapeHtml(result.recipient.email || 'NOT RESOLVED')}</span>`;
+                (result.warnings || []).forEach(w => { html += `<br><span style="color:#f0883e">⚠ ${escapeHtml(w)}</span>`; });
+                if (result.recipient.form_url) html += `<br><span style="color:#8b949e">Web form: <a href="${escapeHtml(result.recipient.form_url)}" target="_blank" style="color:#58a6ff">${escapeHtml(result.recipient.form_url)}</a></span>`;
+                out.innerHTML = html;
+                loadThreats(); loadDMCA();
+                setTimeout(() => { closeModal(); switchTab('dmca'); }, 2500);
+            } else {
+                out.innerHTML = `<span style="color:#f85149">${escapeHtml((result && result.error) || 'Failed')}</span>`;
+            }
         }
 
         function showSuccess(message) {

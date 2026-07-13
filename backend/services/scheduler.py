@@ -48,33 +48,48 @@ def _run_weekly_report():
 
 
 def _run_auto_resolve():
-    """Auto-resolve threats older than 24 hours that haven't been actioned."""
+    """
+    Housekeeping for stale threats.
+
+    IMPORTANT: this used to mark ANY un-actioned threat older than 24h as
+    'resolved', which silently discarded real threats before anyone saw them
+    (a takedown pipeline that deletes its own queue is not end-to-end).
+    Now: only LOW-severity, low-confidence threats are auto-ignored after
+    7 days. Critical/high threats are never touched automatically.
+    """
     try:
         from datetime import datetime, timezone, timedelta
         from backend.database import query, execute
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime(
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
         old_threats = query(
-            "SELECT id FROM threats WHERE status = 'new' AND detected_at < ?",
+            """SELECT id FROM threats
+               WHERE status = 'new' AND detected_at < ?
+                 AND severity = 'low' AND confidence < 0.5""",
             (cutoff,),
         )
+        for t in old_threats:
+            execute("UPDATE threats SET status = 'ignored' WHERE id = ?", (t["id"],))
         if old_threats:
-            now = datetime.now(timezone.utc).isoformat()
-            for t in old_threats:
-                execute(
-                    "UPDATE threats SET status = 'resolved', resolved_at = ? WHERE id = ?",
-                    (now, t["id"]),
-                )
             logger.info(
-                "[AUTO-RESOLVE] Resolved %d stale threats (older than 24h)",
+                "[AUTO-IGNORE] Ignored %d stale low-severity threats (>7 days)",
                 len(old_threats),
             )
-        else:
-            logger.info("[AUTO-RESOLVE] No stale threats to resolve")
     except Exception as exc:
-        logger.error("[AUTO-RESOLVE] Error: %s", exc)
+        logger.error("[AUTO-IGNORE] Error: %s", exc)
+
+
+def _run_takedown_followups():
+    """Check sent notices against their legal deadlines; follow up / escalate."""
+    try:
+        from backend.services.takedown import check_deadlines_and_followup
+        result = check_deadlines_and_followup()
+        if result.get("followups_sent") or result.get("marked_overdue"):
+            logger.info(f"Takedown deadline check: {result}")
+    except Exception as e:
+        logger.error(f"Takedown deadline check failed: {e}", exc_info=True)
 
 
 def init_scheduler(app=None):
@@ -122,11 +137,22 @@ def init_scheduler(app=None):
         replace_existing=True,
     )
 
+    # Takedown deadline / follow-up job (hourly) — enforces the 48h NCII
+    # and 72h DMCA clocks on sent notices.
+    _scheduler.add_job(
+        _run_takedown_followups,
+        trigger=IntervalTrigger(hours=1),
+        id="brand_shield_takedown_followups",
+        name="Takedown deadline check (hourly)",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info(
         f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours, "
         f"weekly report every Monday 8AM UTC, "
-        f"auto-resolve every midnight UTC"
+        f"stale-threat housekeeping midnight UTC, "
+        f"takedown deadline check hourly"
     )
 
 

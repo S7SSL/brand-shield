@@ -72,6 +72,10 @@ def init_db():
             sent_at TEXT,
             response_at TEXT,
             response_text TEXT,
+            legal_basis TEXT,
+            deadline_hours INTEGER,
+            deadline_at TEXT,
+            followup_sent_at TEXT,
             FOREIGN KEY (threat_id) REFERENCES threats(id)
         );
 
@@ -113,8 +117,23 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_suspects_brand ON suspicious_accounts(brand);
     """)
     conn.commit()
+    _migrate(conn)
     conn.close()
     print(f"[DB] Database initialized at {DB_PATH}")
+
+
+def _migrate(conn):
+    """Add columns introduced after initial deploys (SQLite ALTER is additive-only)."""
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(dmca_notices)").fetchall()}
+    for col, ddl in [
+        ("legal_basis", "ALTER TABLE dmca_notices ADD COLUMN legal_basis TEXT"),
+        ("deadline_hours", "ALTER TABLE dmca_notices ADD COLUMN deadline_hours INTEGER"),
+        ("deadline_at", "ALTER TABLE dmca_notices ADD COLUMN deadline_at TEXT"),
+        ("followup_sent_at", "ALTER TABLE dmca_notices ADD COLUMN followup_sent_at TEXT"),
+    ]:
+        if col not in existing:
+            conn.execute(ddl)
+    conn.commit()
 
 
 def row_to_dict(row):
