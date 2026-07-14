@@ -1,5 +1,5 @@
 """
-BrandDefend — Flask HTTP API Server with Authentication
+BrandShield — Flask HTTP API Server with Authentication
 Compatible with Gunicorn for Render.com deployment.
 """
 import os
@@ -46,7 +46,7 @@ def count_query(table, where="", params=()):
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "branddefend-dev-key-change-in-production")
+app.secret_key = os.getenv("SECRET_KEY", "brandshield-dev-key-change-in-production")
 
 # SMTP Configuration (set via Render environment variables)
 SMTP_HOST = os.getenv("SMTP_HOST", "")
@@ -57,7 +57,7 @@ SMTP_FROM = os.getenv("SMTP_FROM", "legal@byerim.com")
 
 # Resend API (alternative to SMTP — preferred if set)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM = os.getenv("RESEND_FROM", "BrandDefend <legal@byerim.com>")
+RESEND_FROM = os.getenv("RESEND_FROM", "BrandShield <legal@byerim.com>")
 
 # BCC every outgoing DMCA / report to this address for audit trail.
 # Set LEGAL_BCC="" on Render to disable.
@@ -1232,7 +1232,7 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
 
     print("=" * 60)
-    print("  BrandDefend — Protecting @erim & @byerim")
+    print("  BrandShield — Protecting @erim & @byerim")
     print(f"  Dashboard: http://localhost:{port}")
     print(f"  Login required (users: sat, erim)")
     print("=" * 60)

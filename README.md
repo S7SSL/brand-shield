@@ -1,17 +1,17 @@
-# BrandDefend
+# BrandShield
 
 **Automated brand protection for @erim & @byerim**
 
-> Formerly "Brand Shield" — rebranded to BrandDefend (branddefend.ai)
+> Formerly "Brand Shield" — rebranded to BrandShield (brand-shield.onrender.com)
 
 Live dashboard: [https://brand-shield.onrender.com](https://brand-shield.onrender.com)
-Future domain: **branddefend.ai** (in progress)
+Future domain: **brand-shield.onrender.com** (in progress)
 
 ---
 
 ## What It Does
 
-BrandDefend monitors the web for brand threats against **Erim Kaur (@erim)** and **ByErim (@byerim)**:
+BrandShield monitors the web for brand threats against **Erim Kaur (@erim)** and **ByErim (@byerim)**:
 
 - 🔍 **Scans** Google/DuckDuckGo for impersonation accounts, counterfeit products, content theft
 - 🚨 **Detects** and scores threats by severity (critical / high / medium / low)
@@ -41,7 +41,7 @@ Set these in Render dashboard under **Environment**:
 |---|---|---|
 | `SECRET_KEY` | ✅ | Flask session secret — set to a long random string |
 | `RESEND_API_KEY` | ✅ recommended | Resend API key for email. Get free at [resend.com](https://resend.com) — 3,000 emails/month free |
-| `RESEND_FROM` | optional | From address (default: `BrandDefend <legal@byerim.com>`) |
+| `RESEND_FROM` | optional | From address (default: `BrandShield <legal@byerim.com>`) |
 | `GOOGLE_CSE_API_KEY` | optional | Google Custom Search API key (upgrade from DDG) |
 | `GOOGLE_CSE_CX` | optional | Google Custom Search Engine ID |
 | `SMTP_HOST` | optional | SMTP host (alternative to Resend) |
@@ -72,13 +72,13 @@ The `/health` endpoint returns scheduler status and last scan time.
 2. Add & verify your domain (`byerim.com`) under **Domains**
 3. Create an API key under **API Keys**
 4. Set `RESEND_API_KEY` in Render environment variables
-5. Set `RESEND_FROM` to `BrandDefend <legal@byerim.com>`
+5. Set `RESEND_FROM` to `BrandShield <legal@byerim.com>`
 
 ---
 
 ## Search Backend
 
-BrandDefend uses a dual-engine approach:
+BrandShield uses a dual-engine approach:
 
 1. **DuckDuckGo** (default, no API key) — runs via HTML scraper, free, ~10 results/query
 2. **Google Custom Search** (optional upgrade) — 100 free searches/day, more accurate

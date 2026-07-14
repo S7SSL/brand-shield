@@ -47,6 +47,22 @@ def _run_weekly_report():
         logger.error(f"Weekly report failed: {e}", exc_info=True)
 
 
+def _run_daily_report():
+    """Callback for the daily digest email."""
+    logger.info("Daily digest starting...")
+    try:
+        from backend.services.reporter import send_daily_report
+        result = send_daily_report()
+        if result.get("sent"):
+            logger.info(f"Daily digest sent to {result.get('recipients')}")
+        else:
+            logger.warning(
+                f"Daily digest not sent: {result.get('reason', result.get('error', 'unknown'))}"
+            )
+    except Exception as e:
+        logger.error(f"Daily digest failed: {e}", exc_info=True)
+
+
 def _run_auto_resolve():
     """
     Housekeeping for stale threats.
@@ -119,12 +135,18 @@ def init_scheduler(app=None):
         replace_existing=True,
     )
 
-    # Weekly report job (every Monday at 8:00 AM UTC)
+    # Daily digest job (every day at 8:00 AM UTC) — emailed to REPORT_RECIPIENTS
+    # (sat@byerim.com, erim@byerim.com). Override time with REPORT_HOUR_UTC.
+    import os as _os
+    try:
+        _report_hour = int(_os.getenv("REPORT_HOUR_UTC", "8"))
+    except ValueError:
+        _report_hour = 8
     _scheduler.add_job(
-        _run_weekly_report,
-        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0),
-        id="brand_shield_weekly_report",
-        name="Brand Shield weekly report (Mon 8AM UTC)",
+        _run_daily_report,
+        trigger=CronTrigger(hour=_report_hour, minute=5),
+        id="brand_shield_daily_report",
+        name=f"BrandShield daily digest ({_report_hour}:05 UTC)",
         replace_existing=True,
     )
 
@@ -150,7 +172,7 @@ def init_scheduler(app=None):
     _scheduler.start()
     logger.info(
         f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours, "
-        f"weekly report every Monday 8AM UTC, "
+        f"daily digest {_report_hour}:05 UTC, "
         f"stale-threat housekeeping midnight UTC, "
         f"takedown deadline check hourly"
     )

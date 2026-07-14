@@ -1,4 +1,4 @@
-# BrandDefend — In Case of Emergency (ICE) Document
+# BrandShield — In Case of Emergency (ICE) Document
 
 > System handover and operations runbook for `S7SSL/brand-shield`.
 > Last updated: 2026-05-01.
@@ -12,7 +12,7 @@
 | Item | Value / Location |
 |---|---|
 | Public dashboard | https://brand-shield.onrender.com |
-| Default domain (planned) | branddefend.ai |
+| Default domain (planned) | brand-shield.onrender.com |
 | GitHub repo | https://github.com/S7SSL/brand-shield |
 | Render service | `brand-shield` (Python 3 / Starter, Oregon) — Service ID `srv-d6du6ccr85hc73c4u0a0` |
 | Default admin login | username `sat`, password as set in code (see `backend/auth.py`) |
@@ -25,7 +25,7 @@
 
 ---
 
-## 2. What does BrandDefend do?
+## 2. What does BrandShield do?
 
 Automated brand protection for **@erim** and **@byerim**:
 
@@ -231,7 +231,7 @@ Set under: Render dashboard → brand-shield → **Environment** → Edit.
 | `GOOGLE_CSE_API_KEY` | Fallback search (Google Custom Search) — currently blocked by org policy, can be removed | optional |
 | `GOOGLE_CSE_CX` | Search engine ID for Google CSE | optional, paired with above |
 | `RESEND_API_KEY` | Email sending via Resend | ✅ yes (or SMTP_*) |
-| `RESEND_FROM` | Default `BrandDefend <legal@byerim.com>` | optional |
+| `RESEND_FROM` | Default `BrandShield <legal@byerim.com>` | optional |
 | `LEGAL_BCC` | BCC every outgoing DMCA + report. Default `legal@byerim.com`. Set to `""` to disable | optional |
 | `REPORT_RECIPIENTS` | Comma-separated emails for weekly digest. Default `sat@byerim.com,erim@byerim.com` | optional |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_PORT`, `SMTP_FROM` | SMTP fallback if Resend unset | optional |
@@ -371,7 +371,7 @@ API keys are stored only in Render's encrypted env-var store. Never commit them 
 - Slack / Telegram webhook for critical-severity threats (so you don't have to wait for the weekly digest).
 - Rate-limit-aware search rotation (Brave → Google → Bing → SerpAPI in cascading fallback).
 - Threat scoring tuning — adjust `IMPERSONATION_WEIGHTS` in `config.py` and `MIN_THREAT_CONFIDENCE` based on false-positive rate after a few months of real data.
-- Custom domain `branddefend.ai` → CNAME to Render.
+- Custom domain `brand-shield.onrender.com` → CNAME to Render.
 - Two-factor auth on the dashboard login.
 - Audit log table — every login, every DMCA send, every threat status change.
 

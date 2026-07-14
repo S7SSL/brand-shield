@@ -266,11 +266,56 @@ def run_brand_scan(brand_key, brand_config):
             ):
                 _create_suspect(brand_key, result, score_data, profile_data)
 
+            # Step 5: AUTO-TAKEDOWN for high-confidence, high-severity threats.
+            # Guarded so we never fire a sworn legal notice on a weak/algorithmic
+            # match (that would risk a §512(f) misrepresentation claim). Lower-
+            # confidence finds are just logged for the daily digest.
+            _maybe_auto_takedown(brand_key, url, result, score_data)
+
     logger.info(
         f"Scan complete for {brand_key}: "
         f"{items_scanned} items scanned, {threats_found} threats found"
     )
     return items_scanned, threats_found
+
+
+def _maybe_auto_takedown(brand_key, url, result, score_data):
+    """Auto-generate + auto-send a takedown for a strong match, if enabled.
+
+    Controlled by:
+      AUTO_TAKEDOWN_ON_SCAN      (default 'true')  — master switch
+      AUTO_TAKEDOWN_MIN_CONFIDENCE (default '0.9')  — confidence floor
+    Only critical/high severity qualify. Sending itself is still gated by
+    AUTO_SEND_TAKEDOWNS + claimant identity fields inside create_takedown.
+    """
+    import os
+    if os.getenv("AUTO_TAKEDOWN_ON_SCAN", "true").lower() != "true":
+        return
+    try:
+        floor = float(os.getenv("AUTO_TAKEDOWN_MIN_CONFIDENCE", "0.9"))
+    except ValueError:
+        floor = 0.9
+    conf = score_data.get("confidence", 0) or 0
+    sev = score_data.get("severity", "")
+    if conf < floor or sev not in ("critical", "high"):
+        return
+    try:
+        from backend.services.takedown import create_takedown, send_ops_alert
+        res = create_takedown(url, brand=brand_key, send=True)
+        sent = any(n.get("sent_now") for n in res.get("notices", []))
+        logger.info(f"[AUTO-TD] {url[:70]} -> {'SENT' if sent else 'draft'} "
+                    f"(conf {conf:.0%}, {sev})")
+        send_ops_alert(
+            f"Auto-takedown {'SENT' if sent else 'drafted'}: {url[:70]}",
+            f"BrandShield auto-actioned a high-confidence threat found by scan.\n\n"
+            f"URL: {url}\nBrand: {brand_key}\nConfidence: {int(conf*100)}%  "
+            f"Severity: {sev}\nRoute: {res.get('basis')}\n"
+            f"Recipient: {res['recipient'].get('email') or res['recipient'].get('form_url')}\n"
+            f"Status: {'notice sent, deadline running' if sent else 'draft (needs recipient/config)'}\n"
+            + ("\nWarnings:\n- " + "\n- ".join(res['warnings']) if res.get('warnings') else "")
+            + "\n\nDashboard: https://brand-shield.onrender.com/")
+    except Exception as e:
+        logger.error(f"[AUTO-TD] failed for {url[:70]}: {e}")
 
 
 def _leak_search(query, num_results=10):
@@ -353,7 +398,7 @@ def run_leak_site_scan(brand=None):
                         from backend.services.takedown import send_ops_alert
                         send_ops_alert(
                             f"Leak-site hit: {url[:80]}",
-                            f"BrandDefend found brand content on a leak site and "
+                            f"BrandShield found brand content on a leak site and "
                             f"{'SENT takedown notice(s) automatically' if sent else 'created DRAFT notice(s) — action needed'}.\n\n"
                             f"URL: {url}\nBrand: {brand_key}\nRoute: {res['basis']}\n"
                             f"Recipient: {res['recipient'].get('email') or 'UNRESOLVED — ' + str(res['recipient'].get('form_url'))}\n"

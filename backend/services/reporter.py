@@ -1,5 +1,5 @@
 """
-Weekly Report Generator for BrandDefend.
+Weekly Report Generator for BrandShield.
 Sends email digests with threat summaries, DMCA status, and suspicious accounts.
 """
 import os
@@ -18,7 +18,7 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "legal@byerim.com")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM = os.getenv("RESEND_FROM", "BrandDefend <legal@byerim.com>")
+RESEND_FROM = os.getenv("RESEND_FROM", "BrandShield <legal@byerim.com>")
 REPORT_RECIPIENTS = os.getenv(
     "REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com"
 ).split(",")
@@ -58,11 +58,11 @@ def _send_via_resend(to_addresses: list, subject: str, html_body: str, plain_bod
         raise Exception(f"Resend API error {resp.status_code}: {resp.text[:300]}")
 
 
-def _get_weekly_data():
-    """Gather stats for the past 7 days."""
-    from backend.database import query, count_query
+def _get_weekly_data(days=7):
+    """Gather stats for the past `days` days (default 7)."""
+    from backend.database import query
 
-    week_ago = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    week_ago = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 
     # New threats this week
     new_threats = query(
@@ -181,7 +181,7 @@ def build_report_html(data):
 
 <!-- Header -->
 <div style="text-align:center;padding:24px 0;border-bottom:1px solid #21262d;">
-    <h1 style="color:#58a6ff;margin:0;font-size:24px;">BrandDefend Weekly Report</h1>
+    <h1 style="color:#58a6ff;margin:0;font-size:24px;">BrandShield Report</h1>
     <p style="color:#8b949e;margin:8px 0 0;font-size:14px;">
         {datetime.utcnow().strftime('%d %B %Y')} &mdash; Protecting @erim &amp; @byerim
     </p>
@@ -314,16 +314,16 @@ def build_report_html(data):
 <div style="text-align:center;padding:24px 0;margin-top:16px;">
     <a href="https://brand-shield.onrender.com/"
        style="display:inline-block;background:#238636;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">
-        Open BrandDefend Dashboard &rarr;
+        Open BrandShield Dashboard &rarr;
     </a>
 </div>
 
 <!-- Footer -->
 <div style="text-align:center;padding:16px 0;border-top:1px solid #21262d;">
     <p style="color:#484f58;font-size:12px;margin:0;">
-        BrandDefend &mdash; Automated Brand Protection for @erim &amp; @byerim<br>
-        This report is generated weekly. Log in to action threats or adjust settings.<br>
-        <a href="https://branddefend.ai" style="color:#484f58;">branddefend.ai</a>
+        BrandShield &mdash; Automated Brand Protection for @erim &amp; @byerim<br>
+        This report is generated daily. Log in to action threats or adjust settings.<br>
+        <a href="https://brand-shield.onrender.com" style="color:#484f58;">brand-shield.onrender.com</a>
     </p>
 </div>
 
@@ -333,34 +333,45 @@ def build_report_html(data):
     return html
 
 
+def send_daily_report():
+    """Generate and send the DAILY digest email (past 24h)."""
+    return _send_report(days=1, label="Daily")
+
+
 def send_weekly_report():
-    """Generate and send the weekly report email."""
-    logger.info("Generating weekly report...")
+    """Generate and send the weekly report email (past 7 days)."""
+    return _send_report(days=7, label="Weekly")
+
+
+def _send_report(days=1, label="Daily"):
+    """Generate and send a report covering the past `days` days."""
+    logger.info(f"Generating {label.lower()} digest...")
 
     try:
-        data = _get_weekly_data()
+        data = _get_weekly_data(days=days)
         html_body = build_report_html(data)
 
         new_count = len(data["new_threats"])
         active_count = len(data["active_threats"])
+        window = "today" if days == 1 else f"this {label.lower().rstrip('ly') or 'period'}"
         subject = (
-            f"Brand Shield Weekly: {new_count} new threats, "
+            f"BrandShield {label}: {new_count} new, {len(data['new_dmca'])} takedowns sent, "
             f"{active_count} active | {datetime.utcnow().strftime('%d %b %Y')}"
         )
 
         plain_text = (
-            f"BrandDefend Weekly Report - {datetime.utcnow().strftime('%d %b %Y')}\n\n"
-            f"New threats this week: {new_count}\n"
+            f"BrandShield {label} Digest - {datetime.utcnow().strftime('%d %b %Y')}\n\n"
+            f"New threats {window}: {new_count}\n"
             f"Active threats: {active_count}\n"
-            f"DMCA notices sent: {len(data['new_dmca'])}\n"
+            f"Takedown notices sent: {len(data['new_dmca'])}\n"
             f"Suspicious accounts: {len(data['suspects'])}\n\n"
-            f"View full report: https://brand-shield.onrender.com/"
+            f"View full dashboard: https://brand-shield.onrender.com/"
         )
 
         # Prefer Resend, fallback to SMTP, or save draft if neither configured
         if RESEND_API_KEY:
             _send_via_resend(REPORT_RECIPIENTS, subject, html_body, plain_text)
-            logger.info(f"Weekly report sent via Resend to {REPORT_RECIPIENTS}")
+            logger.info(f"{label} digest sent via Resend to {REPORT_RECIPIENTS}")
             _save_report_to_db(subject, html_body, data, sent=True)
             return {"sent": True, "method": "resend", "recipients": REPORT_RECIPIENTS, "subject": subject}
         elif SMTP_USER and SMTP_PASS:
@@ -380,7 +391,7 @@ def send_weekly_report():
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(FROM_EMAIL, recipients, msg.as_string())
-            logger.info(f"Weekly report sent via SMTP to {REPORT_RECIPIENTS}")
+            logger.info(f"Daily digest sent via SMTP to {REPORT_RECIPIENTS}")
             _save_report_to_db(subject, html_body, data, sent=True)
             return {"sent": True, "method": "smtp", "recipients": REPORT_RECIPIENTS, "subject": subject}
         else:
@@ -392,7 +403,7 @@ def send_weekly_report():
             return {"sent": False, "reason": "No email provider configured", "subject": subject}
 
     except Exception as e:
-        logger.error(f"Failed to send weekly report: {e}", exc_info=True)
+        logger.error(f"Failed to send {label.lower()} digest: {e}", exc_info=True)
         return {"sent": False, "error": str(e)}
 
 

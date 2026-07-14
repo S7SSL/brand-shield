@@ -1,5 +1,5 @@
 """
-End-to-end takedown orchestration for BrandDefend.
+End-to-end takedown orchestration for BrandShield.
 
 One call does the whole chain:
     URL -> threat record -> correct legal route (DMCA / NCII / both)
@@ -90,7 +90,7 @@ def send_ops_alert(subject: str, body: str):
         recipients = os.getenv("REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com").split(",")
         for r in recipients:
             if r.strip():
-                send_email(r.strip(), f"[BrandDefend] {subject}", body)
+                send_email(r.strip(), f"[BrandShield] {subject}", body)
     except Exception as e:
         logger.warning(f"Ops alert failed: {e}")
 
