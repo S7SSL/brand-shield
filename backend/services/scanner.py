@@ -214,19 +214,53 @@ def run_brand_scan(brand_key, brand_config):
 
     logger.info(f"Scanning brand: {brand_key}")
 
-    # Step 1: Choose search backend
+    # Step 1: Choose search backend — cascade with automatic fallback.
+    # Brave is primary, but its free tier (2000 queries/mo) or a transient
+    # backend error must NOT kill discovery. On failure we fall through to
+    # Google CSE (if configured) and finally the keyless DuckDuckGo scraper.
+    # (Previously a Brave outage raised straight out of the scan, marking it
+    # 'failed' with 0 items and silently halting all discovery.)
+    results = None
+    backend_used = None
+    search_errors = []
+
     if brave_key and brave_key not in ("", "YOUR_KEY_HERE"):
-        logger.info(f"[Scanner] Using Brave Search for {brand_key}")
-        from backend.scrapers.brave_search import search_brand
-        results = search_brand(brand_key, brand_config, brave_key, rate_delay=rate_delay)
-    elif google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
-        logger.info(f"[Scanner] Using Google CSE for {brand_key}")
-        from backend.scrapers.google_search import search_brand
-        results = search_brand(brand_key, brand_config, google_key, google_cx, rate_delay)
-    else:
-        logger.info(f"[Scanner] No paid API keys set — using DuckDuckGo fallback for {brand_key}")
-        from backend.scrapers.duckduckgo_search import search_brand
-        results = search_brand(brand_key, brand_config, rate_delay=rate_delay)
+        try:
+            from backend.scrapers.brave_search import search_brand as _brave_search
+            logger.info(f"[Scanner] Using Brave Search for {brand_key}")
+            results = _brave_search(brand_key, brand_config, brave_key, rate_delay=rate_delay)
+            backend_used = "brave"
+        except Exception as e:
+            search_errors.append(f"brave: {e}")
+            logger.warning(f"[Scanner] Brave failed for {brand_key}; falling back: {e}")
+            results = None
+
+    if results is None and google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
+        try:
+            from backend.scrapers.google_search import search_brand as _google_search
+            logger.info(f"[Scanner] Falling back to Google CSE for {brand_key}")
+            results = _google_search(brand_key, brand_config, google_key, google_cx, rate_delay)
+            backend_used = "google_cse"
+        except Exception as e:
+            search_errors.append(f"google: {e}")
+            logger.warning(f"[Scanner] Google CSE failed for {brand_key}; falling back: {e}")
+            results = None
+
+    if results is None:
+        try:
+            from backend.scrapers.duckduckgo_search import search_brand as _ddg_search
+            logger.info(f"[Scanner] Falling back to DuckDuckGo (keyless) for {brand_key}")
+            results = _ddg_search(brand_key, brand_config, rate_delay=rate_delay)
+            backend_used = "duckduckgo"
+        except Exception as e:
+            search_errors.append(f"ddg: {e}")
+            logger.error(f"[Scanner] All search backends failed for {brand_key}: {search_errors}")
+            results = []
+
+    logger.info(
+        f"[Scanner] {brand_key}: backend={backend_used or 'none'}, "
+        f"{len(results)} raw results"
+    )
     items_scanned = len(results)
     threats_found = 0
 
