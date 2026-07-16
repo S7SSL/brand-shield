@@ -101,10 +101,10 @@ SUSPICIOUS_USERNAME_PATTERNS = [
 ]
 
 # ─── Monitoring Settings ──────────────────────────────────────────────
-# Scan cadence. Default 12h = ~64 queries/day across both brands + leak
-# sweep, which fits Google CSE's 100 free queries/day (primary backend).
-# Do not drop below 12h while on the free Google tier — 6h (~128/day)
-# exceeds it and pushes traffic to the paid Brave fallback.
+# Scan cadence. Default 12h = ~64 queries/day (~1,920/mo) across both
+# brands + leak sweep. Tavily's free tier (1,000 credits/mo, no card)
+# absorbs the first ~1,000; overflow falls through to Brave's $5/mo
+# free credit (~1,000 requests) — so twice-daily runs at $0/month.
 try:
     SCAN_INTERVAL_HOURS = int(os.getenv("SCAN_INTERVAL_HOURS", "12"))
 except (ValueError, TypeError):

@@ -33,6 +33,12 @@ def _get_brave_api_key():
     return os.getenv("BRAVE_API_KEY", "").strip()
 
 
+def _get_tavily_api_key():
+    """Load Tavily API key from env."""
+    import os
+    return os.getenv("TAVILY_API_KEY", "").strip()
+
+
 def _get_weights():
     """Load detection weights from config."""
     try:
@@ -196,12 +202,14 @@ def run_brand_scan(brand_key, brand_config):
     Returns (items_scanned, threats_found).
 
     Search backend priority:
-      1. Google Custom Search API (GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX) —
-         primary: 100 free queries/day covers the 12h cadence at $0/mo.
-         Key lives under a personal Google account (the byerim.com
-         Workspace org blocks the API for org-owned projects).
-      2. Brave Search API (BRAVE_API_KEY) — paid fallback ($5/1k metered).
-      3. DuckDuckGo HTML scraper — last-resort, no key required.
+      1. Tavily (TAVILY_API_KEY) — primary: 1,000 free credits/mo, no card.
+         (Google CSE deprecated "search the entire web" for new engines in
+         2026, so a CSE is no longer viable for broad brand monitoring.)
+      2. Google CSE (GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX) — only useful for
+         grandfathered entire-web engines; kept for compatibility.
+      3. Brave Search API (BRAVE_API_KEY) — metered overflow ($5/mo credit
+         ≈ 1,000 free requests, then $5/1k).
+      4. DuckDuckGo HTML scraper — last-resort, no key required.
     Each level falls through on failure; an outage never kills the scan.
     """
     from backend.scrapers.web_scraper import extract_profile_data
@@ -226,8 +234,20 @@ def run_brand_scan(brand_key, brand_config):
     results = None
     backend_used = None
     search_errors = []
+    tavily_key = _get_tavily_api_key()
 
-    if google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
+    if tavily_key and tavily_key not in ("", "YOUR_KEY_HERE"):
+        try:
+            from backend.scrapers.tavily_search import search_brand as _tavily_search
+            logger.info(f"[Scanner] Using Tavily for {brand_key}")
+            results = _tavily_search(brand_key, brand_config, tavily_key, rate_delay=rate_delay)
+            backend_used = "tavily"
+        except Exception as e:
+            search_errors.append(f"tavily: {e}")
+            logger.warning(f"[Scanner] Tavily failed for {brand_key}; falling back: {e}")
+            results = None
+
+    if results is None and google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
         try:
             from backend.scrapers.google_search import search_brand as _google_search
             logger.info(f"[Scanner] Using Google CSE for {brand_key}")
@@ -357,8 +377,18 @@ def _maybe_auto_takedown(brand_key, url, result, score_data):
 
 def _leak_search(query, num_results=10):
     """Generic web search for leak-site sweeps. Cascade mirrors the brand
-    scan: Google CSE (free; safesearch defaults off for API queries) →
-    Brave (safesearch off) → DDG."""
+    scan: Tavily → Google CSE → Brave (safesearch off) → DDG. Tavily
+    translates `site:` operators into include_domains automatically."""
+    tavily_key = _get_tavily_api_key()
+    if tavily_key and tavily_key not in ("", "YOUR_KEY_HERE"):
+        try:
+            from backend.scrapers.tavily_search import run_tavily_search
+            results = run_tavily_search(tavily_key, query, num_results)
+            if results:
+                return [{"title": r.get("title", ""), "url": r.get("url", ""),
+                         "snippet": r.get("snippet", "")} for r in results]
+        except Exception as e:
+            logger.warning(f"[LEAK-SCAN] Tavily search failed: {e}")
     google_key, google_cx = _get_api_keys()
     if google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
         try:
