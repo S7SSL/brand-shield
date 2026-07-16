@@ -83,16 +83,151 @@ def claimant_missing_fields():
     return missing
 
 
-def send_ops_alert(subject: str, body: str):
-    """Notify the humans (REPORT_RECIPIENTS) via Resend — fire and forget."""
+# ─── Ops alerts ────────────────────────────────────────────────────────
+# Volume controls (added after a scan burst consumed most of a day's Resend
+# allowance): alerts go to ONE address (ALERT_RECIPIENTS env, else the first
+# REPORT_RECIPIENTS entry, default sat@byerim.com), and scans batch all
+# their events into a single summary email instead of one email per event.
+
+_alert_buffer = []
+_alert_batch_depth = 0
+
+
+def _alert_recipients():
+    raw = os.getenv("ALERT_RECIPIENTS", "").strip()
+    if not raw:
+        raw = os.getenv("REPORT_RECIPIENTS", "sat@byerim.com").split(",")[0]
+    return [r.strip() for r in raw.split(",") if r.strip()]
+
+
+def _send_alert_now(subject: str, body: str):
     try:
         from backend.app import send_email
-        recipients = os.getenv("REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com").split(",")
-        for r in recipients:
-            if r.strip():
-                send_email(r.strip(), f"[BrandShield] {subject}", body)
+        for r in _alert_recipients():
+            send_email(r, f"[BrandShield] {subject}", body)
     except Exception as e:
         logger.warning(f"Ops alert failed: {e}")
+
+
+def send_ops_alert(subject: str, body: str):
+    """Notify the operator via Resend — fire and forget. During a scan
+    (alert batch open) the event is buffered into one summary email."""
+    if _alert_batch_depth > 0:
+        _alert_buffer.append((subject, body))
+        return
+    _send_alert_now(subject, body)
+
+
+def begin_alert_batch():
+    """Start buffering ops alerts (re-entrant safe)."""
+    global _alert_batch_depth
+    _alert_batch_depth += 1
+
+
+def flush_alert_batch(context: str = "Scan"):
+    """Close the batch; send ONE combined email if anything happened."""
+    global _alert_batch_depth
+    _alert_batch_depth = max(0, _alert_batch_depth - 1)
+    if _alert_batch_depth > 0 or not _alert_buffer:
+        return
+    events = list(_alert_buffer)
+    _alert_buffer.clear()
+    parts = []
+    for i, (subj, body) in enumerate(events, 1):
+        parts.append(f"{i}. {subj}\n{'-' * 50}\n{body.strip()}\n")
+    _send_alert_now(
+        f"{context} summary: {len(events)} action(s)",
+        f"{len(events)} automated action(s) this run.\n\n" + "\n".join(parts)
+        + "\nDashboard: https://brand-shield.onrender.com/")
+
+
+# ─── Weekly one-click approval flow ────────────────────────────────────
+# New takedowns queue as DRAFTS (no instant auto-send). Every Monday a
+# reminder email lists what's pending with a one-click Approve link
+# (HMAC-signed, valid for the current ISO week) that sends the queue.
+
+def approval_token(offset_weeks: int = 0) -> str:
+    """HMAC token tied to SECRET_KEY and the current ISO week."""
+    import hmac, hashlib
+    from backend.config import SECRET_KEY as _sk
+    secret = os.getenv("SECRET_KEY", _sk if isinstance(_sk, str) else "brandshield")
+    y, w, _ = (datetime.now(timezone.utc) - timedelta(weeks=offset_weeks)).isocalendar()
+    return hmac.new(secret.encode(), f"approve:{y}-{w}".encode(),
+                    hashlib.sha256).hexdigest()[:32]
+
+
+def verify_approval_token(token: str) -> bool:
+    """Accept this week's or last week's token (grace for late clicks)."""
+    import hmac as _hmac
+    return any(_hmac.compare_digest(token or "", approval_token(o)) for o in (0, 1))
+
+
+def pending_drafts():
+    """Draft notices that are ready to send (have a recipient email)."""
+    from backend.database import query
+    return query(
+        """SELECT * FROM dmca_notices
+           WHERE status = 'draft' AND recipient_email != '' ORDER BY id""")
+
+
+def unresolved_drafts():
+    """Draft notices stuck without a recipient email."""
+    from backend.database import query
+    return query(
+        """SELECT * FROM dmca_notices
+           WHERE status = 'draft' AND recipient_email = '' ORDER BY id""")
+
+
+def send_pending_notices() -> dict:
+    """Send every ready draft (the one-click Approve action)."""
+    from backend.app import send_email
+    sent, failed = 0, 0
+    for n in pending_drafts():
+        try:
+            ok, method, _msg = send_email(
+                n["recipient_email"], n.get("subject_line") or "Takedown notice",
+                n.get("body") or "")
+            if ok and method != "simulated":
+                mark_notice_sent(n["id"])
+                sent += 1
+            else:
+                failed += 1
+        except Exception as e:
+            logger.error(f"Approve-send failed for notice {n['id']}: {e}")
+            failed += 1
+    logger.info(f"[APPROVE] pending queue processed: {sent} sent, {failed} failed")
+    return {"sent": sent, "failed": failed}
+
+
+def send_monday_approval_reminder() -> dict:
+    """Scheduler job (Mondays): one gentle email listing the pending queue
+    with a one-click Approve link. Skipped entirely when nothing is pending."""
+    ready = pending_drafts()
+    stuck = unresolved_drafts()
+    if not ready and not stuck:
+        logger.info("[APPROVE] Monday reminder skipped — queue empty")
+        return {"sent": False, "reason": "queue empty"}
+    lines = []
+    for n in ready:
+        lines.append(f"  • #{n['id']}  {n.get('legal_basis', 'dmca').upper()}  "
+                     f"{n.get('recipient_platform', '?')}  ->  {n.get('recipient_email')}")
+    stuck_lines = [f"  • #{n['id']}  {n.get('recipient_platform', '?')} "
+                   f"(no contact found — set TAKEDOWN_CONTACTS or send via form)"
+                   for n in stuck]
+    approve_url = (f"https://brand-shield.onrender.com/approve?token="
+                   f"{approval_token()}")
+    body = (
+        "Morning! Here's your weekly BrandShield queue.\n\n"
+        + (f"READY TO SEND ({len(ready)}):\n" + "\n".join(lines) + "\n\n"
+           f"One click to approve & send all of these:\n{approve_url}\n\n"
+           if ready else "Nothing is ready to send this week.\n\n")
+        + (f"NEEDS A CONTACT ({len(stuck)}):\n" + "\n".join(stuck_lines) + "\n\n"
+           if stuck else "")
+        + "Prefer to cherry-pick? Review individually on the dashboard:\n"
+          "https://brand-shield.onrender.com/\n\n"
+          "(The approve link is valid for two weeks and only works for you.)")
+    _send_alert_now(f"Weekly approval: {len(ready)} notice(s) awaiting your OK", body)
+    return {"sent": True, "ready": len(ready), "stuck": len(stuck)}
 
 
 def _merged_registry():

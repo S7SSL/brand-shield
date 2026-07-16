@@ -97,6 +97,17 @@ def _run_auto_resolve():
         logger.error("[AUTO-IGNORE] Error: %s", exc)
 
 
+def _run_monday_approval_reminder():
+    """Callback for the weekly one-click approval email (Monday mornings).
+    Skipped automatically when the pending queue is empty."""
+    try:
+        from backend.services.takedown import send_monday_approval_reminder
+        result = send_monday_approval_reminder()
+        logger.info(f"Monday approval reminder: {result}")
+    except Exception as e:
+        logger.error(f"Monday approval reminder failed: {e}", exc_info=True)
+
+
 def _run_takedown_followups():
     """Check sent notices against their legal deadlines; follow up / escalate."""
     try:
@@ -136,7 +147,7 @@ def init_scheduler(app=None):
     )
 
     # Daily digest job (every day at 8:00 AM UTC) — emailed to REPORT_RECIPIENTS
-    # (sat@byerim.com, erim@byerim.com). Override time with REPORT_HOUR_UTC.
+    # (default sat@byerim.com only). Override time with REPORT_HOUR_UTC.
     import os as _os
     try:
         _report_hour = int(_os.getenv("REPORT_HOUR_UTC", "8"))
@@ -169,10 +180,21 @@ def init_scheduler(app=None):
         replace_existing=True,
     )
 
+    # Weekly one-click approval reminder (Mondays 8:00 UTC) — lists queued
+    # draft notices with an Approve link. Skipped when the queue is empty.
+    _scheduler.add_job(
+        _run_monday_approval_reminder,
+        trigger=CronTrigger(day_of_week="mon", hour=_report_hour, minute=0),
+        id="brand_shield_monday_approval",
+        name=f"Weekly approval reminder (Mon {_report_hour}:00 UTC)",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info(
         f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours, "
         f"daily digest {_report_hour}:05 UTC, "
+        f"Monday approval reminder {_report_hour}:00 UTC, "
         f"stale-threat housekeeping midnight UTC, "
         f"takedown deadline check hourly"
     )

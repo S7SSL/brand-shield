@@ -20,7 +20,7 @@ FROM_EMAIL = os.getenv("FROM_EMAIL", "legal@byerim.com")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM = os.getenv("RESEND_FROM", "BrandShield <legal@byerim.com>")
 REPORT_RECIPIENTS = os.getenv(
-    "REPORT_RECIPIENTS", "sat@byerim.com,erim@byerim.com"
+    "REPORT_RECIPIENTS", "sat@byerim.com"
 ).split(",")
 
 # BCC every weekly report to this address for audit trail.

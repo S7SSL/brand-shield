@@ -358,19 +358,19 @@ def _maybe_auto_takedown(brand_key, url, result, score_data):
         return
     try:
         from backend.services.takedown import create_takedown, send_ops_alert
-        res = create_takedown(url, brand=brand_key, send=True)
+        auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "false").lower() == "true"
+        res = create_takedown(url, brand=brand_key, send=auto_send)
         sent = any(n.get("sent_now") for n in res.get("notices", []))
         logger.info(f"[AUTO-TD] {url[:70]} -> {'SENT' if sent else 'draft'} "
                     f"(conf {conf:.0%}, {sev})")
         send_ops_alert(
-            f"Auto-takedown {'SENT' if sent else 'drafted'}: {url[:70]}",
-            f"BrandShield auto-actioned a high-confidence threat found by scan.\n\n"
+            f"Auto-takedown {'SENT' if sent else 'queued for your approval'}: {url[:70]}",
+            f"BrandShield actioned a high-confidence threat found by scan.\n\n"
             f"URL: {url}\nBrand: {brand_key}\nConfidence: {int(conf*100)}%  "
             f"Severity: {sev}\nRoute: {res.get('basis')}\n"
             f"Recipient: {res['recipient'].get('email') or res['recipient'].get('form_url')}\n"
-            f"Status: {'notice sent, deadline running' if sent else 'draft (needs recipient/config)'}\n"
-            + ("\nWarnings:\n- " + "\n- ".join(res['warnings']) if res.get('warnings') else "")
-            + "\n\nDashboard: https://brand-shield.onrender.com/")
+            f"Status: {'notice sent, deadline running' if sent else 'queued as draft — approve in Monday email or dashboard'}\n"
+            + ("\nWarnings:\n- " + "\n- ".join(res['warnings']) if res.get('warnings') else ""))
     except Exception as e:
         logger.error(f"[AUTO-TD] failed for {url[:70]}: {e}")
 
@@ -441,7 +441,7 @@ def run_leak_site_scan(brand=None):
         create_takedown, registrable_domain, ADULT_SITE_HINTS, LEAK_SCAN_SITES,
     )
 
-    auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "true").lower() == "true"
+    auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "false").lower() == "true"
     scan_id = _start_scan_record("leak_site_scan", brand)
     items, found = 0, 0
     try:
@@ -477,11 +477,10 @@ def run_leak_site_scan(brand=None):
                         send_ops_alert(
                             f"Leak-site hit: {url[:80]}",
                             f"BrandShield found brand content on a leak site and "
-                            f"{'SENT takedown notice(s) automatically' if sent else 'created DRAFT notice(s) — action needed'}.\n\n"
+                            f"{'SENT takedown notice(s) automatically' if sent else 'queued notice(s) for your Monday approval'}.\n\n"
                             f"URL: {url}\nBrand: {brand_key}\nRoute: {res['basis']}\n"
                             f"Recipient: {res['recipient'].get('email') or 'UNRESOLVED — ' + str(res['recipient'].get('form_url'))}\n"
-                            + ("\nWarnings:\n- " + "\n- ".join(res["warnings"]) if res["warnings"] else "")
-                            + "\n\nDashboard: https://brand-shield.onrender.com/")
+                            + ("\nWarnings:\n- " + "\n- ".join(res["warnings"]) if res["warnings"] else ""))
                     except Exception as e:
                         logger.error(f"[LEAK-SCAN] takedown failed for {url[:70]}: {e}")
         _complete_scan_record(scan_id, items, found)
@@ -506,6 +505,10 @@ def run_full_scan(brand=None, platform=None):
     total_items = 0
     total_threats = 0
 
+    # Batch every ops alert raised during this scan into ONE summary email
+    # (previously each event emailed separately — 17 hits = 34+ emails).
+    from backend.services.takedown import begin_alert_batch, flush_alert_batch
+    begin_alert_batch()
     try:
         brands_to_scan = {}
         if brand and brand in BRANDS:
@@ -540,6 +543,8 @@ def run_full_scan(brand=None, platform=None):
     except Exception as e:
         logger.error(f"Scan failed: {e}", exc_info=True)
         _complete_scan_record(scan_id, total_items, total_threats, str(e))
+    finally:
+        flush_alert_batch("Scan")
 
     return {
         "scan_id": scan_id,

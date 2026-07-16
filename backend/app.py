@@ -868,9 +868,10 @@ def api_takedown():
         return jsonify({"error": "A valid http(s) url is required"}), 400
 
     from backend.services.takedown import create_takedown
-    # Fully automated by default: AUTO_SEND_TAKEDOWNS=true means notices go
-    # out via Resend immediately (blocked only if claimant env vars missing).
-    auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "true").lower() == "true"
+    # Weekly-approval mode (default): notices queue as drafts and go out via
+    # the Monday one-click approval email (or per-notice from the dashboard).
+    # Set AUTO_SEND_TAKEDOWNS=true to restore instant automated sending.
+    auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "false").lower() == "true"
     try:
         result = create_takedown(
             url=url,
@@ -886,6 +887,36 @@ def api_takedown():
         return jsonify({"success": True, **result}), 201
     except Exception as e:
         return jsonify({"error": f"Takedown pipeline failed: {e}"}), 500
+
+
+@app.route("/approve", methods=["GET"])
+def approve_pending():
+    """One-click weekly approval from the Monday reminder email.
+    Auth = HMAC token signed with SECRET_KEY, scoped to the ISO week
+    (this week's or last week's token accepted). No login needed."""
+    from backend.services.takedown import (
+        verify_approval_token, send_pending_notices, pending_drafts,
+    )
+    token = request.args.get("token", "")
+    if not verify_approval_token(token):
+        return ("<html><body style='font-family:sans-serif;text-align:center;"
+                "padding-top:80px'><h2>Link expired</h2><p>This approval link "
+                "is no longer valid. A fresh one arrives next Monday, or "
+                "approve from the <a href='/'>dashboard</a>.</p></body></html>",
+                403)
+    queued = len(pending_drafts())
+    if not queued:
+        return ("<html><body style='font-family:sans-serif;text-align:center;"
+                "padding-top:80px'><h2>Nothing pending</h2><p>The queue is "
+                "empty — nothing needed your approval.</p></body></html>")
+    result = send_pending_notices()
+    return (f"<html><body style='font-family:sans-serif;text-align:center;"
+            f"padding-top:80px'><h2>✅ Approved</h2>"
+            f"<p>{result['sent']} notice(s) sent"
+            + (f", {result['failed']} failed (see dashboard)" if result['failed'] else "")
+            + ".<br>Deadline tracking and follow-ups are now running "
+              "automatically.</p>"
+              "<p><a href='/'>Open dashboard</a></p></body></html>")
 
 
 @app.route("/api/takedown/overdue", methods=["GET"])
