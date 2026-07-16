@@ -101,7 +101,14 @@ SUSPICIOUS_USERNAME_PATTERNS = [
 ]
 
 # ─── Monitoring Settings ──────────────────────────────────────────────
-SCAN_INTERVAL_HOURS = 6
+# Scan cadence. Default 12h = ~64 queries/day across both brands + leak
+# sweep, which fits Google CSE's 100 free queries/day (primary backend).
+# Do not drop below 12h while on the free Google tier — 6h (~128/day)
+# exceeds it and pushes traffic to the paid Brave fallback.
+try:
+    SCAN_INTERVAL_HOURS = int(os.getenv("SCAN_INTERVAL_HOURS", "12"))
+except (ValueError, TypeError):
+    SCAN_INTERVAL_HOURS = 12
 MAX_DAILY_SEARCHES = 100
 HASH_DISTANCE_THRESHOLD = 12
 TEXT_SIMILARITY_THRESHOLD = 0.75

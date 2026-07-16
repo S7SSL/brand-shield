@@ -196,12 +196,13 @@ def run_brand_scan(brand_key, brand_config):
     Returns (items_scanned, threats_found).
 
     Search backend priority:
-      1. Brave Search API   (if BRAVE_API_KEY is set) — current primary, since
-         Google CSE is blocked at the byerim.com Workspace org level.
-      2. Google Custom Search API (if GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX are
-         set and accessible) — kept as fallback in case Brave goes down or
-         the org block is later lifted.
+      1. Google Custom Search API (GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX) —
+         primary: 100 free queries/day covers the 12h cadence at $0/mo.
+         Key lives under a personal Google account (the byerim.com
+         Workspace org blocks the API for org-owned projects).
+      2. Brave Search API (BRAVE_API_KEY) — paid fallback ($5/1k metered).
       3. DuckDuckGo HTML scraper — last-resort, no key required.
+    Each level falls through on failure; an outage never kills the scan.
     """
     from backend.scrapers.web_scraper import extract_profile_data
     from backend.services.detector import score_result
@@ -215,35 +216,37 @@ def run_brand_scan(brand_key, brand_config):
     logger.info(f"Scanning brand: {brand_key}")
 
     # Step 1: Choose search backend — cascade with automatic fallback.
-    # Brave is primary, but its free tier (2000 queries/mo) or a transient
-    # backend error must NOT kill discovery. On failure we fall through to
-    # Google CSE (if configured) and finally the keyless DuckDuckGo scraper.
-    # (Previously a Brave outage raised straight out of the scan, marking it
-    # 'failed' with 0 items and silently halting all discovery.)
+    # Google CSE is primary (100 free queries/day — covers the twice-daily
+    # cadence at zero cost; key created under a personal account, sidestepping
+    # the byerim.com Workspace org block). Brave is the paid fallback
+    # ($5/1k metered, $5/mo credit), and the keyless DuckDuckGo scraper is
+    # last resort. A backend failure must NOT kill discovery — we fall
+    # through. (Previously a single-backend outage raised straight out of
+    # the scan, marking it 'failed' with 0 items and halting all discovery.)
     results = None
     backend_used = None
     search_errors = []
 
-    if brave_key and brave_key not in ("", "YOUR_KEY_HERE"):
-        try:
-            from backend.scrapers.brave_search import search_brand as _brave_search
-            logger.info(f"[Scanner] Using Brave Search for {brand_key}")
-            results = _brave_search(brand_key, brand_config, brave_key, rate_delay=rate_delay)
-            backend_used = "brave"
-        except Exception as e:
-            search_errors.append(f"brave: {e}")
-            logger.warning(f"[Scanner] Brave failed for {brand_key}; falling back: {e}")
-            results = None
-
-    if results is None and google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
+    if google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
         try:
             from backend.scrapers.google_search import search_brand as _google_search
-            logger.info(f"[Scanner] Falling back to Google CSE for {brand_key}")
+            logger.info(f"[Scanner] Using Google CSE for {brand_key}")
             results = _google_search(brand_key, brand_config, google_key, google_cx, rate_delay)
             backend_used = "google_cse"
         except Exception as e:
             search_errors.append(f"google: {e}")
             logger.warning(f"[Scanner] Google CSE failed for {brand_key}; falling back: {e}")
+            results = None
+
+    if results is None and brave_key and brave_key not in ("", "YOUR_KEY_HERE"):
+        try:
+            from backend.scrapers.brave_search import search_brand as _brave_search
+            logger.info(f"[Scanner] Falling back to Brave Search for {brand_key}")
+            results = _brave_search(brand_key, brand_config, brave_key, rate_delay=rate_delay)
+            backend_used = "brave"
+        except Exception as e:
+            search_errors.append(f"brave: {e}")
+            logger.warning(f"[Scanner] Brave failed for {brand_key}; falling back: {e}")
             results = None
 
     if results is None:
@@ -353,8 +356,19 @@ def _maybe_auto_takedown(brand_key, url, result, score_data):
 
 
 def _leak_search(query, num_results=10):
-    """Generic web search for leak-site sweeps (Brave preferred, safesearch OFF
-    so adult-site results aren't filtered; DDG fallback)."""
+    """Generic web search for leak-site sweeps. Cascade mirrors the brand
+    scan: Google CSE (free; safesearch defaults off for API queries) →
+    Brave (safesearch off) → DDG."""
+    google_key, google_cx = _get_api_keys()
+    if google_key and google_cx and google_key not in ("", "YOUR_KEY_HERE"):
+        try:
+            from backend.scrapers.google_search import run_google_search
+            results = run_google_search(google_key, google_cx, query, num_results)
+            if results:
+                return [{"title": r.get("title", ""), "url": r.get("url", ""),
+                         "snippet": r.get("snippet", "")} for r in results]
+        except Exception as e:
+            logger.warning(f"[LEAK-SCAN] Google CSE search failed: {e}")
     brave_key = _get_brave_api_key()
     if brave_key and brave_key not in ("", "YOUR_KEY_HERE"):
         import requests
