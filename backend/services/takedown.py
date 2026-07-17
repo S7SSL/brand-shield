@@ -207,10 +207,14 @@ def send_monday_approval_reminder() -> dict:
     if not ready and not stuck:
         logger.info("[APPROVE] Monday reminder skipped — queue empty")
         return {"sent": False, "reason": "queue empty"}
+    from backend.database import query as _q
     lines = []
     for n in ready:
-        lines.append(f"  • #{n['id']}  {n.get('legal_basis', 'dmca').upper()}  "
-                     f"{n.get('recipient_platform', '?')}  ->  {n.get('recipient_email')}")
+        det = _q("SELECT detected_url FROM threats WHERE id = ?",
+                 (n.get("threat_id"),), one=True)
+        url = (det["detected_url"] if det else "") or n.get("recipient_platform", "?")
+        lines.append(f"  • #{n['id']}  {n.get('legal_basis', 'dmca').upper()}  ->  {n.get('recipient_email')}\n"
+                     f"        {url}")
     stuck_lines = [f"  • #{n['id']}  {n.get('recipient_platform', '?')} "
                    f"(no contact found — set TAKEDOWN_CONTACTS or send via form)"
                    for n in stuck]

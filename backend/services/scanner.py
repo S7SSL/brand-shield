@@ -356,6 +356,17 @@ def _maybe_auto_takedown(brand_key, url, result, score_data):
     sev = score_data.get("severity", "")
     if conf < floor or sev not in ("critical", "high"):
         return
+    # VERIFY the page genuinely references the brand before any notice.
+    try:
+        from backend.services.verifier import verify_url
+        from backend.config import BRANDS
+        v = verify_url(url, brand_key, BRANDS.get(brand_key, {}))
+        if not v["verified"]:
+            logger.info(f"[AUTO-TD] skipped unverified {url[:70]}: {v['reason']}")
+            return
+    except Exception as e:
+        logger.warning(f"[AUTO-TD] verification error for {url[:70]}: {e}")
+        return
     try:
         from backend.services.takedown import create_takedown, send_ops_alert
         auto_send = os.getenv("AUTO_SEND_TAKEDOWNS", "false").lower() == "true"
@@ -457,6 +468,7 @@ def run_leak_site_scan(brand=None):
             if len(terms) > 1:
                 queries.append(f'"{terms[1]}" leaked album')
 
+            from backend.services.verifier import verify_url
             for q in queries:
                 results = _leak_search(q)
                 items += len(results)
@@ -467,18 +479,38 @@ def run_leak_site_scan(brand=None):
                         continue
                     if _url_already_tracked(url):
                         continue
+                    # VERIFY before creating any threat/notice. Reject
+                    # search/listing pages and pages that don't genuinely
+                    # reference the brand's identity. This is what stops the
+                    # false-positive NCII notices.
+                    v = verify_url(url, brand_key, cfg)
+                    if not v["verified"]:
+                        logger.info(f"[LEAK-SCAN] skipped unverified {url[:70]}: {v['reason']}")
+                        continue
                     try:
-                        res = create_takedown(url, brand=brand_key, send=auto_send)
+                        evidence_desc = (
+                            f"Automated verification: page reachable (HTTP "
+                            f"{v['evidence'].get('http_status')}), title "
+                            f"\"{v['evidence'].get('title', '')}\", brand identity "
+                            f"terms found: {', '.join(v['evidence'].get('matched_terms', []))}. "
+                            f"HUMAN CONFIRMATION that this depicts non-consensual/"
+                            f"infringing content of the brand is still required "
+                            f"before sending.")
+                        res = create_takedown(url, brand=brand_key, send=auto_send,
+                                              extra={"evidence_description": evidence_desc})
                         found += 1
                         sent = any(n.get("sent_now") for n in res["notices"])
-                        logger.info(f"[LEAK-SCAN] {url[:70]} -> "
-                                    f"{'notice SENT' if sent else 'draft (needs recipient/config)'}")
+                        logger.info(f"[LEAK-SCAN] VERIFIED {url[:70]} ({v['confidence']}) -> "
+                                    f"{'notice SENT' if sent else 'queued for approval'}")
                         from backend.services.takedown import send_ops_alert
                         send_ops_alert(
-                            f"Leak-site hit: {url[:80]}",
-                            f"BrandShield found brand content on a leak site and "
-                            f"{'SENT takedown notice(s) automatically' if sent else 'queued notice(s) for your Monday approval'}.\n\n"
+                            f"Verified leak-site hit: {url[:80]}",
+                            f"BrandShield found and VERIFIED brand content on a leak "
+                            f"site (confidence {int(v['confidence']*100)}%) and "
+                            f"{'SENT takedown notice(s)' if sent else 'queued notice(s) for your approval'}.\n\n"
                             f"URL: {url}\nBrand: {brand_key}\nRoute: {res['basis']}\n"
+                            f"Page title: {v['evidence'].get('title', '')}\n"
+                            f"Matched: {', '.join(v['evidence'].get('matched_terms', []))}\n"
                             f"Recipient: {res['recipient'].get('email') or 'UNRESOLVED — ' + str(res['recipient'].get('form_url'))}\n"
                             + ("\nWarnings:\n- " + "\n- ".join(res["warnings"]) if res["warnings"] else ""))
                     except Exception as e:
