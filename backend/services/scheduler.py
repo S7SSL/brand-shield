@@ -137,12 +137,19 @@ def init_scheduler(app=None):
 
     _scheduler = BackgroundScheduler(daemon=True)
 
-    # Auto-scan job (every N hours)
+    # Auto-scan job — once per day at a fixed clock time (default 16:00 UTC /
+    # GMT). Override with SCAN_HOUR_UTC. One daily scan (~32 queries) keeps
+    # well inside the Tavily free tier.
+    import os as _os2
+    try:
+        _scan_hour = int(_os2.getenv("SCAN_HOUR_UTC", "16"))
+    except ValueError:
+        _scan_hour = 16
     _scheduler.add_job(
         _run_scheduled_scan,
-        trigger=IntervalTrigger(hours=SCAN_INTERVAL_HOURS),
+        trigger=CronTrigger(hour=_scan_hour, minute=0),
         id="brand_shield_scan",
-        name=f"Brand Shield scan (every {SCAN_INTERVAL_HOURS}h)",
+        name=f"BrandShield daily scan ({_scan_hour}:00 UTC)",
         replace_existing=True,
     )
 
@@ -192,7 +199,7 @@ def init_scheduler(app=None):
 
     _scheduler.start()
     logger.info(
-        f"Scheduler started: scanning every {SCAN_INTERVAL_HOURS} hours, "
+        f"Scheduler started: daily scan {_scan_hour}:00 UTC, "
         f"daily digest {_report_hour}:05 UTC, "
         f"Monday approval reminder {_report_hour}:00 UTC, "
         f"stale-threat housekeeping midnight UTC, "
