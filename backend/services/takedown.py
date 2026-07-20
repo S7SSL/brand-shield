@@ -501,78 +501,59 @@ def mark_notice_sent(nid: int):
 
 def check_deadlines_and_followup() -> dict:
     """
-    Scheduler job: find sent notices past their deadline with no response.
-    First breach -> send ONE follow-up email and mark followup_sent_at.
-    Already followed-up + another deadline period elapsed -> status 'overdue'
-    (surfaces in dashboard + weekly report for human escalation: FTC complaint
-    for NCII, host/registrar abuse for DMCA).
+    Scheduler job: find sent notices past their deadline with no response and
+    mark them 'overdue'. It does NOT send anything by default — flagging only.
+
+    IMPORTANT: this job previously AUTO-SENT follow-up emails to recipients and
+    AUTO-ESCALATED to registrar abuse contacts every hour, bypassing the
+    auto-send switch. That produced repeated bursts of unwanted mail. Now, in
+    line with the human-approval model, it silently marks notices overdue and
+    (once) emails the operator ONE summary. Chasing/escalation is only done if
+    a human opts in — never automatically. Set AUTO_FOLLOWUP=true to restore
+    automatic follow-up/escalation sending (default: off).
     """
     from backend.database import query, execute
 
+    auto_followup = os.getenv("AUTO_FOLLOWUP", "false").lower() == "true"
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
-    followed_up, overdue = 0, 0
 
     breached = query(
         """SELECT * FROM dmca_notices
            WHERE status = 'sent' AND deadline_at IS NOT NULL AND deadline_at < ?
              AND response_at IS NULL""", (now_iso,))
+
+    newly_overdue = 0
     for n in breached:
-        if not n.get("followup_sent_at"):
-            body = (
-                f"FOLLOW-UP — REMOVAL DEADLINE PASSED\n\n"
-                f"On {n.get('sent_at', '')} we sent the notice below regarding:\n"
-                f"  {n.get('recipient_platform', '')}\n\n"
-                f"The removal deadline has now passed without confirmation of removal."
-                + ("\n\nNon-consensual intimate imagery must be removed within 48 hours "
-                   "under the TAKE IT DOWN Act (Pub. L. 119-12), enforceable by the US "
-                   "Federal Trade Commission. Continued non-compliance will be reported "
-                   "to the FTC." if n.get("legal_basis") == "ncii" else
-                   "\n\nFailure to expeditiously remove infringing material upon valid "
-                   "notification forfeits DMCA safe-harbor protection (17 U.S.C. § 512).")
-                + "\n\nPlease confirm removal immediately.\n\n"
-                  "--- ORIGINAL NOTICE ---\n\n" + (n.get("body") or ""))
+        # Flag only. No sending.
+        execute("UPDATE dmca_notices SET status = 'overdue' WHERE id = ?", (n["id"],))
+        newly_overdue += 1
+        if auto_followup:                 # opt-in only; default never runs
             try:
                 if n.get("recipient_email"):
                     from backend.app import send_email
-                    send_email(n["recipient_email"], "FOLLOW-UP: " + (n.get("subject_line") or ""), body)
+                    send_email(n["recipient_email"],
+                               "FOLLOW-UP: " + (n.get("subject_line") or ""),
+                               "FOLLOW-UP — removal deadline passed.\n\n"
+                               "--- ORIGINAL NOTICE ---\n\n" + (n.get("body") or ""))
                     execute("UPDATE dmca_notices SET followup_sent_at = ? WHERE id = ?",
                             (now_iso, n["id"]))
-                    followed_up += 1
-                else:
-                    execute("UPDATE dmca_notices SET status = 'overdue' WHERE id = ?", (n["id"],))
-                    overdue += 1
-                    _escalate_overdue(n)
+                _escalate_overdue(n)
             except Exception as e:
                 logger.error(f"Follow-up send failed for notice {n['id']}: {e}")
-        else:
-            # Follow-up already sent; give one more deadline period, then escalate.
-            try:
-                fu = datetime.fromisoformat(n["followup_sent_at"])
-                if fu.tzinfo is None:
-                    fu = fu.replace(tzinfo=timezone.utc)
-            except Exception:
-                fu = now
-            hours = n.get("deadline_hours") or 72
-            if now > fu + timedelta(hours=hours):
-                execute("UPDATE dmca_notices SET status = 'overdue' WHERE id = ?", (n["id"],))
-                overdue += 1
-                _escalate_overdue(n)
 
-    if followed_up or overdue:
-        logger.info(f"[TAKEDOWN] follow-ups sent: {followed_up}, marked overdue: {overdue}")
+    if newly_overdue:
+        logger.info(f"[TAKEDOWN] marked {newly_overdue} notice(s) overdue (flag-only)")
         send_ops_alert(
-            f"Takedown deadlines: {followed_up} follow-up(s) sent, {overdue} now OVERDUE",
-            f"Hourly deadline check results:\n"
-            f"- Follow-ups auto-sent: {followed_up}\n"
-            f"- Escalated to overdue: {overdue}\n\n"
-            f"Overdue NCII notices should be reported to the FTC "
-            f"(https://reportfraud.ftc.gov — TAKE IT DOWN Act non-compliance). "
-            f"Registrar abuse escalation has been attempted automatically where "
-            f"a contact could be found.\n\n"
-            f"Escalation queue: https://brand-shield.onrender.com/ (DMCA tab) "
-            f"or GET /api/takedown/overdue")
-    return {"followups_sent": followed_up, "marked_overdue": overdue}
+            f"{newly_overdue} takedown notice(s) passed their deadline",
+            f"{newly_overdue} sent notice(s) have passed their removal deadline "
+            f"without a logged response. They are flagged 'overdue' for your "
+            f"review — NO automatic follow-up or escalation was sent.\n\n"
+            f"If you want to chase any of them (a follow-up to the host, or an "
+            f"FTC complaint for NCII at https://reportfraud.ftc.gov), do it from "
+            f"the dashboard: https://brand-shield.onrender.com/ (DMCA tab) or "
+            f"GET /api/takedown/overdue.")
+    return {"followups_sent": 0, "marked_overdue": newly_overdue}
 
 
 def _escalate_overdue(notice: dict):
