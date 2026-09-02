@@ -77,3 +77,36 @@ The scan simply does not run that day; nothing queues. The deadline job that
 flags overdue notices catches up at the next start. Keep the Mini set to
 restart after power failure (System Settings → Energy) and the LaunchAgent
 (`RunAtLoad`) brings the service back with it.
+
+## Migration record — 2 September 2026
+
+Done, in this order:
+
+1. Render workspace downgraded Pro → Hobby (the Pro subscription was ~76% of
+   the monthly bill; brand-shield's Starter instance was the rest).
+2. The Mini already had a checkout at `~/code/brand-shield` from May 2026
+   (last ran 27 May on the old 6-hourly Brave scanner) with an unquoted
+   `BS_DATA_DIR`/`RESEND_FROM` in its `.env`, which is why that install had
+   been writing its DB to the repo's `data/` folder. The clone step in the
+   runbook therefore failed; the fix was `git pull --ff-only` on top.
+3. **Anything local from May is preserved** in a git stash on the Mini —
+   `git stash list` shows `pre-migration-2026-09-02`. Nothing was deleted.
+   `git stash drop` it once you are sure it holds nothing you want.
+4. `.env` rebuilt by merging Render's **Export → Download .env** over the May
+   file (Render values win), then pinning `BS_DATA_DIR`, `HOST=127.0.0.1`,
+   `PORT=5050`, `DEBUG=false`; every value containing spaces or `<>` is now
+   quoted. 24 keys, none empty. File is `chmod 600`.
+5. LaunchAgents bootstrapped; `/health` returned `status: ok`; log shows the
+   daily 16:00 UTC scan, 08:05 UTC digest, hourly deadline check, Monday
+   08:00 UTC approval reminder and midnight housekeeping scheduled.
+6. `brand-shield` suspended on Render (config retained; resumable).
+
+Still to do by hand:
+
+- Delete the cron-job.org job that pings `https://brand-shield.onrender.com/health`
+  every 5 minutes — it only existed to keep the free tier awake.
+- The `brand-shield-mac-mini.patch` file in `~/Developer` on the MacBook Air
+  was the vehicle for commit `25bb565` and is already merged — delete it.
+- Dependency bump: GitHub reports 14 Dependabot alerts against the 2023-era
+  pins in `requirements.txt` (Flask 3.0.0, Werkzeug 3.0.1, requests 2.31.0,
+  lxml 5.1.0). Low exposure while bound to loopback, but worth doing.

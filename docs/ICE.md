@@ -1,7 +1,7 @@
 # BrandShield — In Case of Emergency (ICE) Document
 
 > System handover and operations runbook for `S7SSL/brand-shield`.
-> Last updated: 2026-05-01.
+> Last updated: 2026-09-02 (moved to the Mac Mini; Render suspended).
 > Purpose: anyone (you, a future you, a delegate) can understand the system,
 > operate it, and fix it without prior context.
 
@@ -11,15 +11,15 @@
 
 | Item | Value / Location |
 |---|---|
-| Public dashboard | https://brand-shield.onrender.com |
-| Default domain (planned) | brand-shield.onrender.com |
+| Dashboard | `http://127.0.0.1:5050` on the Mac Mini (`marge-gateway`); from other devices via Tailscale. No public URL. |
+| Hosting | Mac Mini launchd LaunchAgent `com.byerim.brand-shield`, checkout `~/code/brand-shield` (user `marge`) — see `docs/MAC-MINI-MIGRATION.md` |
 | GitHub repo | https://github.com/S7SSL/brand-shield |
-| Render service | `brand-shield` (Python 3 / Starter, Oregon) — Service ID `srv-d6du6ccr85hc73c4u0a0` |
-| Default admin login | username `sat`, password as set in code (see `backend/auth.py`) |
+| Render service | `brand-shield` (Service ID `srv-d6du6ccr85hc73c4u0a0`) — **suspended 2026-09-02**, config retained; workspace on Hobby (free) |
+| Admin login | `ADMIN_USER` / `ADMIN_PASSWORD` from `.env` (never in code — see README "Logins") |
 | Brand owner login | username `erim` |
 | Health endpoint | `GET /health` (public, no auth) |
-| Scheduler | APScheduler in-process, runs every 6 hours |
-| Auto-deploy | enabled — push to `main` triggers Render build |
+| Scheduler | APScheduler in-process: daily scan 16:00 UTC, digest 08:05 UTC, Monday approval reminder 08:00 UTC, deadline check hourly, housekeeping 00:00 UTC |
+| Auto-deploy | none since the move — `git pull` + `launchctl kickstart -k gui/$(id -u)/com.byerim.brand-shield` on the Mini |
 | Sender address | `legal@byerim.com` (Resend From + audit BCC) |
 | Weekly report recipients | `sat@byerim.com`, `erim@byerim.com` |
 
@@ -195,23 +195,26 @@ cp ~/Documents/Claude/brand-shield-backups/brand_shield-latest.db \
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.byerim.brand-shield.plist
 ```
 
-### Render service (legacy, to be decommissioned)
+### Render service (suspended 2026-09-02)
 
-The Render Starter service at `brand-shield.onrender.com` is the previous
-production deployment. Its data is ephemeral (no persistent disk → wiped
-every redeploy). It will be paused/decommissioned once the Mac Mini
-deployment is verified and Tailscale access is set up.
+The Render Starter service at `brand-shield.onrender.com` was the previous
+production deployment. It was **suspended on 2026-09-02** once the Mac Mini
+service was verified healthy; the service config and env vars are retained
+on Render and it can be resumed from the dashboard if the Mini is ever
+unavailable for a long stretch. Its data was ephemeral (no persistent disk),
+so nothing was migrated. The Render workspace was downgraded from Pro to
+Hobby the same day — nothing on it is billed now.
 
 ### How to deploy a code change
 
 ```bash
-cd ~/code/brand-shield
-# … make changes
-git add -A
-git commit -m "describe change"
+# On any machine: commit and push as usual
 git push origin main
-# Render auto-deploys; takes 2–3 minutes
-# Verify: curl https://brand-shield.onrender.com/health
+# On the Mac Mini (there is no auto-deploy any more):
+cd ~/code/brand-shield && git pull --ff-only && .venv/bin/pip install -q -r requirements.txt \
+  && launchctl kickstart -k gui/$(id -u)/com.byerim.brand-shield
+# Verify:
+curl -s http://127.0.0.1:5050/health; tail -20 ~/Library/Logs/brand-shield.log
 ```
 
 ### How to roll back
