@@ -55,28 +55,55 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "→ writing sample .env (fill in the secret values)"
   cat > "$ENV_FILE" <<'ENVTEMPLATE'
 # Mac Mini deployment env vars for brand-shield.
-# This file is gitignored. Fill in the placeholders below before starting.
+# Sourced by zsh (set -a; source .env) — quote any value containing spaces, < > or #.
+# This file is gitignored. Copy each value from the Render dashboard
+# (brand-shield -> Environment) before starting; blanks fall back to the
+# defaults in backend/config.py, backend/app.py and backend/services/*.
 
+# --- Required ---
+# SECRET_KEY: any long random string, e.g. the output of: openssl rand -hex 32
 SECRET_KEY=replace-with-a-long-random-string
+ADMIN_USER=sat
+ADMIN_PASSWORD=
 BS_DATA_DIR=__DATA_DIR_PLACEHOLDER__
 
-# Search backend (primary)
+# --- Search backends (Tavily is primary; Brave / Google CSE are fallbacks) ---
+TAVILY_API_KEY=
 BRAVE_API_KEY=
-
-# Email — DMCA + weekly report sender
-RESEND_API_KEY=
-RESEND_FROM=BrandDefend <legal@byerim.com>
-LEGAL_BCC=legal@byerim.com
-REPORT_RECIPIENTS=sat@byerim.com,erim@byerim.com
-
-# Optional fallback search backend
 GOOGLE_CSE_API_KEY=
 GOOGLE_CSE_CX=
 
-# Production tweaks
-PORT=5050
+# --- Email (Resend) ---
+RESEND_API_KEY=
+RESEND_FROM="BrandShield <legal@byerim.com>"
+LEGAL_BCC=legal@byerim.com
+REPORT_RECIPIENTS=sat@byerim.com
+ALERT_RECIPIENTS=
+
+# --- Takedown claimant block (auto-send is blocked until signer, address and email are set) ---
+DMCA_SIGNER_NAME=
+DMCA_ADDRESS=
+DMCA_PHONE=
+DMCA_EMAIL=
+# JSON map of domain -> contact overrides; keep the single quotes, e.g. '{"erome.com": {"email": "..."}}'
+TAKEDOWN_CONTACTS=''
+
+# --- Automation switches (mirror what Render had) ---
+AUTO_SEND_TAKEDOWNS=false
+AUTO_TAKEDOWN_ON_SCAN=false
+AUTO_TAKEDOWN_MIN_CONFIDENCE=
+AUTO_FOLLOWUP=false
+AUTO_ESCALATE=true
+
+# --- Schedule (UTC) ---
+SCAN_HOUR_UTC=16
+REPORT_HOUR_UTC=8
+
+# --- Server ---
 HOST=127.0.0.1
+PORT=5050
 DEBUG=false
+SEED_DEMO=false
 ENVTEMPLATE
   # Substitute the actual data dir
   if command -v gsed &>/dev/null; then
@@ -101,7 +128,7 @@ echo
 echo "✓ install complete."
 echo
 echo "Next steps:"
-echo "  1. Edit $ENV_FILE and paste your keys (BRAVE_API_KEY, RESEND_API_KEY, SECRET_KEY)"
+echo "  1. Edit $ENV_FILE and paste the values from Render -> brand-shield -> Environment"
 echo "  2. Load both launchd services:"
 echo "       launchctl bootstrap gui/\$(id -u) $APP_PLIST"
 echo "       launchctl bootstrap gui/\$(id -u) $BACKUP_PLIST"

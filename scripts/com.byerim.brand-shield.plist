@@ -1,59 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-LaunchAgent for the brand-shield Flask app.
+LaunchAgent for the brand-shield Flask app (Mac Mini replacement for the
+Render web service).
 
-Runs gunicorn bound to 127.0.0.1:5050 (loopback only — Tailscale exposes
-it to your other devices over the tailnet without needing to listen on a
-public interface).
+Runs gunicorn bound to 127.0.0.1:5050 — loopback only. Scans, takedown
+emails and the weekly report need no inbound access at all; the dashboard is
+reachable from other devices over Tailscale (or a Cloudflare Tunnel) without
+opening a public port.
 
-Loaded by scripts/install-mac.sh; the __HOME__ tokens are substituted at
-install time. After install, manage with:
+The __HOME__ tokens are substituted by scripts/install-mac.sh. Manage with:
   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.byerim.brand-shield.plist
   launchctl bootout    gui/$(id -u)/com.byerim.brand-shield
+  launchctl kickstart -k gui/$(id -u)/com.byerim.brand-shield   # restart
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
     <string>com.byerim.brand-shield</string>
 
+    <!-- zsh wrapper: export everything in .env, then exec gunicorn so the
+         env vars reach the app and launchd still supervises the real PID. -->
     <key>ProgramArguments</key>
     <array>
-        <string>__HOME__/code/brand-shield/.venv/bin/gunicorn</string>
-        <string>--bind</string>
-        <string>127.0.0.1:5050</string>
-        <string>--workers</string>
-        <string>1</string>
-        <string>--timeout</string>
-        <string>120</string>
-        <string>backend.app:app</string>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>set -a; source __HOME__/code/brand-shield/.env; set +a; exec __HOME__/code/brand-shield/.venv/bin/gunicorn --bind "${HOST:-127.0.0.1}:${PORT:-5050}" --workers 1 --timeout 120 backend.app:app</string>
     </array>
 
     <key>WorkingDirectory</key>
     <string>__HOME__/code/brand-shield</string>
 
-    <!-- Load env vars from the .env file via a tiny shell wrapper -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>__HOME__/code/brand-shield/.venv/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <string>__HOME__/code/brand-shield/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
     </dict>
 
-    <!-- Source .env before exec — gunicorn reads its own envs from the calling shell -->
-    <key>Program</key>
-    <string>/bin/zsh</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/zsh</string>
-        <string>-c</string>
-        <string>set -a; source __HOME__/code/brand-shield/.env; set +a; exec __HOME__/code/brand-shield/.venv/bin/gunicorn --bind 127.0.0.1:5050 --workers 1 --timeout 120 backend.app:app</string>
-    </array>
-
     <key>RunAtLoad</key>
     <true/>
 
+    <!-- Restart on crash, but not on a clean exit (launchctl bootout). -->
     <key>KeepAlive</key>
     <dict>
         <key>SuccessfulExit</key>
@@ -65,7 +54,6 @@ install time. After install, manage with:
 
     <key>StandardOutPath</key>
     <string>__HOME__/Library/Logs/brand-shield.log</string>
-
     <key>StandardErrorPath</key>
     <string>__HOME__/Library/Logs/brand-shield.log</string>
 </dict>

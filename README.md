@@ -29,7 +29,7 @@ BrandShield monitors the web for brand threats against **Erim Kaur (@erim)** and
 - **Search**: DuckDuckGo HTML scraper (no key) + Google CSE (optional)
 - **Email**: Resend API (preferred) or SMTP
 - **Scheduler**: APScheduler (background)
-- **Hosting**: Render.com (free tier)
+- **Hosting**: Mac Mini launchd service — see `docs/MAC-MINI-MIGRATION.md` (previously Render.com; that service is suspended)
 
 ---
 
